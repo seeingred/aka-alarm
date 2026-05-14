@@ -41,11 +41,11 @@
     <h1>Privacy Policy</h1>
     <p class="updated">Last updated: 14 May 2026</p>
 
-    <p>aka Alarm ("the app") is designed with privacy at its core. The short version: <strong>nothing leaves your device</strong>. There is no server, no account, no analytics, no tracking, no third-party SDKs.</p>
+    <p>aka Alarm ("the app") is designed with privacy at its core. The short version: <strong>nothing leaves your device</strong>. There is no server, no account, no analytics, no tracking, no third-party SDKs. The same policy applies to the iOS and Android versions.</p>
 
     <h2>What the app accesses</h2>
     <ul>
-      <li><strong>Microphone</strong>. The app uses the microphone to measure the ambient sound level of your room while an alarm is set. It establishes a rolling baseline and detects when the level rises above it — which is the cue to wake you. The microphone is active only between the moment you tap <em>Start</em> and the moment the alarm ends or you cancel it.</li>
+      <li><strong>Microphone</strong>. The app uses the microphone to measure the ambient sound level of your room while an alarm is set. It establishes a rolling baseline and detects when the level rises above it — which is the cue to wake you. The microphone is active only between the moment you tap <em>Start</em> and the moment the alarm ends or you cancel it. On Android the app additionally runs a foreground service while the alarm is armed; this is a system requirement for continuous microphone access and shows a persistent notification ("aka Alarm is listening…") so you always know when the microphone is in use.</li>
       <li><strong>Motion sensors</strong>. While the alarm is firing, the app reads the gyroscope so a light movement of the phone triggers a snooze. This data is read in real time and is not stored.</li>
     </ul>
 
@@ -58,7 +58,12 @@
     </ul>
 
     <h2>Permissions you can revoke</h2>
-    <p>You can revoke microphone access at any time in iOS Settings → aka Alarm → Microphone. Without microphone access the spike-detection feature cannot work, but the alarm will still fire at the end of the wake-up window so you don't oversleep.</p>
+    <p>You can revoke microphone access at any time:</p>
+    <ul>
+      <li><strong>iOS</strong>: Settings → aka Alarm → Microphone.</li>
+      <li><strong>Android</strong>: Settings → Apps → aka Alarm → Permissions → Microphone.</li>
+    </ul>
+    <p>Without microphone access the spike-detection feature cannot work, but the alarm will still fire at the end of the wake-up window so you don't oversleep.</p>
 
     <h2>Children's privacy</h2>
     <p>The app is rated 4+ on the App Store. It does not knowingly collect data from anyone, including children.</p>

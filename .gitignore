@@ -25,6 +25,8 @@ Packages/
 
 # Android
 android/local.properties
+android/keystore.properties
+android/*.jks
 android/.gradle/
 android/.idea/
 android/.kotlin/

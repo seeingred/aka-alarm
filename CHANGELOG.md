@@ -2,9 +2,9 @@
 
 ## 1.0.0 — 2026-05-14
 
-First public release on the App Store.
+First public release. iOS via App Store, Android via Google Play.
 
-**App Store "What's new" copy (≤4000 chars, paste-ready):**
+**Store "What's new" copy (≤4000 chars, paste-ready for both stores):**
 
 > aka Alarm 1.0 — wake up gently.
 >
@@ -12,11 +12,22 @@ First public release on the App Store.
 >
 > Snooze by lightly moving the phone. Slide up to dismiss. On-device only — nothing leaves your phone.
 
-**Highlights**
+**Highlights (shared)**
 
 - Wake-up window with smart spike detection on the microphone.
 - 60-second volume fade-in for the alarm tone.
 - Motion-driven snooze (random 60 s–15 min, clamped to remaining window).
-- Native iOS 26 Liquid Glass UI throughout — pickers, button, mic-level bar.
-- App icon with dark and tinted variants for iOS 18+ home screen modes.
 - 100 % on-device: no network, no analytics, no accounts.
+
+**iOS-specific**
+
+- Native iOS 26 Liquid Glass UI throughout — pickers, button, mic-level bar.
+- App icon with dark and tinted variants for iOS 18+ home-screen modes.
+
+**Android-specific**
+
+- Native Kotlin + Jetpack Compose, Material 3 with dynamic colours.
+- ForegroundService keeps the mic alive overnight with a persistent
+  "aka Alarm is listening…" notification — much more reliable than the
+  best-effort background-audio path on iOS.
+- Min SDK 34 (Android 14).
