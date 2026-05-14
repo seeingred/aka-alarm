@@ -21,3 +21,4 @@ ios/Local.xcconfig
 .build/
 Packages/
 *.xcworkspace/xcuserdata
+.claude
