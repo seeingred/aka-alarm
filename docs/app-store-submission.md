@@ -44,20 +44,18 @@ alarm,wake,sleep,gentle,smart,sunrise,microphone,bedtime,snooze,sound,window
 
 **Support URL**
 ```
-https://akaseeingred.github.io/aka-alarm/
+https://seeingred.github.io/aka-alarm/
 ```
 
 **Privacy policy URL**
 ```
-https://akaseeingred.github.io/aka-alarm/privacy.html
+https://seeingred.github.io/aka-alarm/privacy.html
 ```
 
 **Marketing URL** (optional, same as support)
 ```
-https://akaseeingred.github.io/aka-alarm/
+https://seeingred.github.io/aka-alarm/
 ```
-
-> Replace `akaseeingred` with your actual GitHub username if different.
 
 ---
 
