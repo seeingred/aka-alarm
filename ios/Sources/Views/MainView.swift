@@ -171,15 +171,19 @@ struct MicLevelView: View {
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
+                // Track: faint glass capsule.
                 Capsule()
-                    .fill(Color.secondary.opacity(0.15))
+                    .fill(.clear)
+                    .glassEffect(in: .capsule)
 
+                // Level: brighter glass capsule that grows with the live mic level.
                 Capsule()
-                    .fill(Color.accentColor)
+                    .fill(.white.opacity(0.35))
+                    .glassEffect(in: .capsule)
                     .frame(width: max(2, geo.size.width * Self.normalize(currentDB)))
                     .animation(.linear(duration: 0.05), value: currentDB)
 
-                // baseline marker
+                // Baseline marker — kept warm so it pops against the cool glass.
                 Rectangle()
                     .fill(Color.orange)
                     .frame(width: 2, height: geo.size.height + 12)
@@ -289,9 +293,29 @@ struct NumberWheel: UIViewRepresentable {
 
 // MARK: - Previews
 
+#if DEBUG
 #Preview("Set alarm (idle)") {
     MainView()
         .environmentObject(AlarmStore())
         .preferredColorScheme(.dark)
 }
+
+#Preview("Monitoring (pre-window)") {
+    MainView()
+        .environmentObject(AlarmStore.preview(phase: .monitoring(
+            start: .now.addingTimeInterval(45 * 60),
+            end:   .now.addingTimeInterval(75 * 60)
+        )))
+        .preferredColorScheme(.dark)
+}
+
+#Preview("In wake window") {
+    MainView()
+        .environmentObject(AlarmStore.preview(phase: .inWindow(
+            start: .now.addingTimeInterval(-5 * 60),
+            end:   .now.addingTimeInterval(25 * 60)
+        )))
+        .preferredColorScheme(.dark)
+}
+#endif
 

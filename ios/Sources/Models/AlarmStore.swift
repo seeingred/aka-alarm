@@ -212,4 +212,14 @@ final class AlarmStore: ObservableObject {
         }
         return (start, end)
     }
+
+#if DEBUG
+    /// Preview-only: construct a store pinned to a specific phase, skipping
+    /// the normal transition pipeline so no mic/motion/audio side effects fire.
+    static func preview(phase: AlarmPhase) -> AlarmStore {
+        let store = AlarmStore()
+        store.phase = phase
+        return store
+    }
+#endif
 }

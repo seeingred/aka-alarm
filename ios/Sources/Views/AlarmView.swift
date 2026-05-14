@@ -67,3 +67,22 @@ struct AlarmView: View {
         String(format: "%02d:%02d", seconds / 60, seconds % 60)
     }
 }
+
+#if DEBUG
+#Preview("Alarming") {
+    AlarmView()
+        .environmentObject(AlarmStore.preview(phase: .alarming(
+            windowEnd: .now.addingTimeInterval(15 * 60)
+        )))
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Snoozing") {
+    AlarmView()
+        .environmentObject(AlarmStore.preview(phase: .snoozing(
+            until: .now.addingTimeInterval(3 * 60),
+            windowEnd: .now.addingTimeInterval(15 * 60)
+        )))
+        .preferredColorScheme(.dark)
+}
+#endif
