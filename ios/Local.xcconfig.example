@@ -1,0 +1,8 @@
+// Per-developer signing settings. Copy this file to `Local.xcconfig` and fill in
+// your values. `Local.xcconfig` is gitignored so your team ID never gets committed.
+//
+// You can find your team ID at Xcode → Settings → Accounts → (your Apple ID) → Team,
+// or at https://developer.apple.com/account → Membership Details.
+
+DEVELOPMENT_TEAM =
+CODE_SIGN_STYLE = Automatic

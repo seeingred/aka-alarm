@@ -13,6 +13,9 @@
 ios/AkaAlarm.xcodeproj/
 ios/Resources/Info.plist
 
+# Per-developer signing settings (use Local.xcconfig.example as a template)
+ios/Local.xcconfig
+
 # Swift Package Manager
 .swiftpm/
 .build/

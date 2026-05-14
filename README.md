@@ -34,13 +34,23 @@ moment.
 
 ```sh
 cd ios
-xcodegen generate           # produces ios/AkaAlarm.xcodeproj from project.yml
-open AkaAlarm.xcodeproj      # then ⌘R on a physical device
+cp Local.xcconfig.example Local.xcconfig    # first time only
+# edit Local.xcconfig and set DEVELOPMENT_TEAM = <your team id>
+xcodegen generate                            # produces ios/AkaAlarm.xcodeproj from project.yml
+open AkaAlarm.xcodeproj                       # then ⌘R on a physical device
 ```
 
 > The Xcode project and `ios/Resources/Info.plist` are *generated* from
 > `ios/project.yml` — they are gitignored. Re-run `xcodegen generate`
 > whenever you change `project.yml`.
+
+### Setting your development team once
+
+`ios/Local.xcconfig` is a per-developer file that holds your `DEVELOPMENT_TEAM`.
+It's gitignored, so your team ID never lands in the repo, but `project.yml`
+references it so the team survives every regeneration of the Xcode project.
+You only need to fill it in once. Find your team ID at
+**Xcode → Settings → Accounts → (your Apple ID) → Team**.
 
 ### Running on a device
 
@@ -48,7 +58,6 @@ Microphone monitoring **does not work on the simulator** in any meaningful
 way — the simulator's mic is a virtual passthrough of your Mac's mic, and
 background audio behaves differently. Use a real device.
 
-In Xcode → project → Signing & Capabilities, set your Apple Developer team.
 The bundle ID is `com.aka.alarm` (change it in `project.yml` if you want).
 
 ### Running on the simulator
