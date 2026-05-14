@@ -51,3 +51,20 @@ targets:
         SUPPORTS_MACCATALYST: NO
         SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
+
+schemes:
+  AkaAlarm:
+    build:
+      targets:
+        AkaAlarm: all
+    run:
+      config: Debug
+      executable: AkaAlarm
+    test:
+      config: Debug
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
