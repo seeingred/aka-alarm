@@ -75,7 +75,12 @@ final class AlarmStore: ObservableObject {
                 return
             }
             let (start, end) = self.computeWindow(now: now)
-            self.transition(to: .monitoring(start: start, end: end))
+            if now >= start {
+                // "Now" is already inside the window — start listening for a stir immediately.
+                self.transition(to: .inWindow(start: start, end: end))
+            } else {
+                self.transition(to: .monitoring(start: start, end: end))
+            }
         }
     }
 
@@ -173,10 +178,12 @@ final class AlarmStore: ObservableObject {
         comps.minute = selectedMinute
         comps.second = 0
         var start = calendar.date(from: comps) ?? now
-        if start <= now {
+        var end = start.addingTimeInterval(Tuning.wakeWindowDuration)
+        // Only roll to tomorrow if the *entire* window has already passed.
+        if end <= now {
             start = calendar.date(byAdding: .day, value: 1, to: start) ?? start
+            end = start.addingTimeInterval(Tuning.wakeWindowDuration)
         }
-        let end = start.addingTimeInterval(Tuning.wakeWindowDuration)
         return (start, end)
     }
 }
