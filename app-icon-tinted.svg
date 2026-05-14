@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  aka Alarm — app icon (tinted variant, iOS 18+).
+  Monochrome stencil on a transparent background. iOS draws its own dark
+  backing and tints all opaque pixels with the user's chosen Home Screen
+  tint colour. Whites become the tint; transparency stays transparent.
+
+  No gradient, no glow, no amber — those would lose meaning when recoloured.
+  Visual hierarchy is preserved through opacity, not colour.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- transparent background: no <rect> fill -->
+
+  <!-- subtle base dial -->
+  <circle cx="512" cy="512" r="380"
+          fill="none" stroke="#FFFFFF" stroke-width="14" opacity="0.30"/>
+
+  <!-- wake-window arc: brightest element, becomes the dominant tinted shape -->
+  <path d="M 512 132 A 380 380 0 0 1 892 512"
+        fill="none" stroke="#FFFFFF" stroke-width="36"
+        stroke-linecap="round"/>
+
+  <!-- listening glyph: dot + 3 rings -->
+  <circle cx="512" cy="512" r="18" fill="#FFFFFF"/>
+  <circle cx="512" cy="512" r="64"  fill="none" stroke="#FFFFFF" stroke-width="7" opacity="0.85"/>
+  <circle cx="512" cy="512" r="116" fill="none" stroke="#FFFFFF" stroke-width="6" opacity="0.60"/>
+  <circle cx="512" cy="512" r="170" fill="none" stroke="#FFFFFF" stroke-width="5" opacity="0.35"/>
+</svg>

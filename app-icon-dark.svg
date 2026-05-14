@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  aka Alarm — app icon (dark variant, iOS 18+).
+  Same composition as app-icon.svg, but the background drops the dawn-blue
+  warmth and stays in a deep-indigo range so the icon nests cleanly into
+  the dark Home Screen wallpaper.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="darkSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#02061A"/>
+      <stop offset="100%" stop-color="#0B1A4A"/>
+    </linearGradient>
+    <linearGradient id="amber" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"   stop-color="#FFE6A8"/>
+      <stop offset="55%"  stop-color="#FFB454"/>
+      <stop offset="100%" stop-color="#FF8A1A"/>
+    </linearGradient>
+    <filter id="glow" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="10" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#darkSky)"/>
+
+  <circle cx="512" cy="512" r="380"
+          fill="none" stroke="#FFF6E5" stroke-width="14" opacity="0.42"/>
+
+  <path d="M 512 132 A 380 380 0 0 1 892 512"
+        fill="none" stroke="url(#amber)" stroke-width="36"
+        stroke-linecap="round" filter="url(#glow)"/>
+
+  <circle cx="512" cy="512" r="18" fill="#FFF6E5"/>
+  <circle cx="512" cy="512" r="64"  fill="none" stroke="#FFF6E5" stroke-width="7" opacity="0.78"/>
+  <circle cx="512" cy="512" r="116" fill="none" stroke="#FFF6E5" stroke-width="6" opacity="0.55"/>
+  <circle cx="512" cy="512" r="170" fill="none" stroke="#FFF6E5" stroke-width="5" opacity="0.32"/>
+</svg>
