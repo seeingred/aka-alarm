@@ -60,7 +60,7 @@ private struct SetAlarmView: View {
                 .pickerStyle(.wheel)
                 .frame(maxWidth: .infinity)
             }
-            .frame(height: 200)
+            .frame(height: 400)
 
             Text(windowLabel)
                 .font(.headline)
@@ -110,8 +110,11 @@ private struct MonitoringView: View {
 
             if let w = store.phase.window {
                 Text("\(w.start, format: .dateTime.hour().minute()) – \(w.end, format: .dateTime.hour().minute())")
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 72, weight: .thin, design: .rounded))
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+                    .padding(.horizontal)
             }
 
             MicLevelView(currentDB: store.micLevelDB, baselineDB: store.baselineDB)
