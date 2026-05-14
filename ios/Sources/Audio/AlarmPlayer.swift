@@ -1,5 +1,6 @@
 import Foundation
 import AVFoundation
+import AudioToolbox
 
 /// Plays the alarm tone with a gradual volume fade-up from `alarmStartVolume` to
 /// `alarmEndVolume` over `alarmFadeDuration` seconds. The tone is generated
@@ -10,6 +11,7 @@ final class AlarmPlayer {
     private let player = AVAudioPlayerNode()
     private var buffer: AVAudioPCMBuffer?
     private var fadeTimer: Timer?
+    private var vibrationTimer: Timer?
     private var connected = false
 
     func start() {
@@ -46,14 +48,29 @@ final class AlarmPlayer {
         } catch {
             print("AlarmPlayer.start failed: \(error)")
         }
+
+        startVibration()
     }
 
     func stop() {
         fadeTimer?.invalidate()
         fadeTimer = nil
+        vibrationTimer?.invalidate()
+        vibrationTimer = nil
         if player.isPlaying { player.stop() }
         if engine.isRunning { engine.stop() }
         // Session lifecycle is owned by AlarmStore; do not deactivate here.
+    }
+
+    private func startVibration() {
+        vibrationTimer?.invalidate()
+        // Fire one pulse immediately so the buzz lines up with audio start.
+        AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
+        vibrationTimer = Timer.scheduledTimer(
+            withTimeInterval: Tuning.vibrationPulseInterval, repeats: true
+        ) { _ in
+            AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
+        }
     }
 
     private func startFade() {

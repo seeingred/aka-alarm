@@ -24,12 +24,18 @@ enum Tuning {
     static let dbFloor: Double = -80
 
     // MARK: Motion / snooze nudge
-    /// Acceleration magnitude (g) above local rest that counts as a "nudge".
-    static let snoozeAccelDelta: Double = 0.15
+    /// Gyroscope rotation magnitude (rad/s) above which a device pickup or tilt
+    /// counts as a snooze nudge. Using rotation rather than acceleration makes
+    /// the detector robust to the alarm's own vibration buzz.
+    static let snoozeRotationThreshold: Double = 1.5
     static let motionSamplingHz: Double = 50
 
     // MARK: Alarm tone
     static let alarmFadeDuration: TimeInterval = 60
     static let alarmStartVolume: Float = 0.01
     static let alarmEndVolume: Float = 1.0
+
+    // MARK: Vibration
+    /// Period between vibration pulses while the alarm is firing.
+    static let vibrationPulseInterval: TimeInterval = 1.5
 }
