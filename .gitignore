@@ -35,3 +35,4 @@ android/*.iml
 android/app/*.iml
 android/.cxx/
 android/release/
+.idea

@@ -50,7 +50,12 @@ fun NumberWheel(
     val centeredIndex by remember(values) {
         derivedStateOf {
             val info = listState.layoutInfo
-            val viewportCenter = info.viewportSize.height / 2f
+            // visibleItemsInfo[i].offset is in scroll coordinates, where
+            // `viewportStartOffset = -beforeContentPadding`. The viewport's
+            // visual centre in *those* coords is the midpoint of start/end —
+            // NOT `viewportSize.height / 2`, which would shift the centre by
+            // the top content padding and produce an N-row offset.
+            val viewportCenter = (info.viewportStartOffset + info.viewportEndOffset) / 2f
             info.visibleItemsInfo
                 .minByOrNull { abs(it.offset + it.size / 2f - viewportCenter) }
                 ?.index ?: initialIndex
