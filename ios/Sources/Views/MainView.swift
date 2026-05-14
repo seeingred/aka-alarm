@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct MainView: View {
     @EnvironmentObject private var store: AlarmStore
@@ -40,31 +41,47 @@ private struct SetAlarmView: View {
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 0) {
-                Picker("Hour", selection: $store.selectedHour) {
-                    ForEach(0..<24, id: \.self) { h in
-                        Text(String(format: "%02d", h)).tag(h)
-                    }
-                }
-                .pickerStyle(.wheel)
+                NumberWheel(
+                    selection: $store.selectedHour,
+                    values: Array(0..<24),
+                    rowHeight: 80,
+                    fontSize: 44
+                )
                 .frame(maxWidth: .infinity)
+                .background(alignment: .center) {
+                    Color.clear
+                        .glassEffect(in: .capsule)
+                        .frame(height: 80)
+                        .padding(.horizontal, 12)
+                }
 
                 Text(":")
                     .font(.system(size: 40, weight: .light))
                     .foregroundStyle(.secondary)
 
-                Picker("Minute", selection: $store.selectedMinute) {
-                    ForEach(minuteOptions, id: \.self) { m in
-                        Text(String(format: "%02d", m)).tag(m)
-                    }
-                }
-                .pickerStyle(.wheel)
+                NumberWheel(
+                    selection: $store.selectedMinute,
+                    values: minuteOptions,
+                    rowHeight: 80,
+                    fontSize: 44
+                )
                 .frame(maxWidth: .infinity)
+                .background(alignment: .center) {
+                    Color.clear
+                        .glassEffect(in: .capsule)
+                        .frame(height: 80)
+                        .padding(.horizontal, 12)
+                }
             }
             .frame(height: 400)
+            .padding(.horizontal, 16)
 
             Text(windowLabel)
-                .font(.headline)
-                .foregroundStyle(.secondary)
+                .font(.system(size: 72, weight: .thin, design: .rounded))
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+                .padding(.horizontal, 32)
 
             Spacer(minLength: 0)
 
@@ -74,13 +91,13 @@ private struct SetAlarmView: View {
                 Text("Start")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.glass)
+            .buttonBorderShape(.capsule)
             .controlSize(.large)
-            .padding(.horizontal)
-            .padding(.bottom, 12)
         }
         .padding()
         .onAppear { store.resetSelectedToCurrentWindow() }
+        .task { store.resetSelectedToCurrentWindow() }
     }
 
     private var windowLabel: String {
@@ -110,11 +127,8 @@ private struct MonitoringView: View {
 
             if let w = store.phase.window {
                 Text("\(w.start, format: .dateTime.hour().minute()) – \(w.end, format: .dateTime.hour().minute())")
-                    .font(.system(size: 72, weight: .thin, design: .rounded))
-                    .monospacedDigit()
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.5)
-                    .padding(.horizontal)
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
             }
 
             MicLevelView(currentDB: store.micLevelDB, baselineDB: store.baselineDB)
@@ -197,3 +211,87 @@ struct SlideUpHint: View {
         .padding(.bottom, 8)
     }
 }
+
+// MARK: - Number wheel
+
+/// SwiftUI's `Picker(.wheel)` ignores `.frame(height:)` — its embedded
+/// UIPickerView always reports the same intrinsic height regardless of
+/// what frame we propose. This wraps UIPickerView directly so we can
+/// control row height (and therefore total height) and font size.
+struct NumberWheel: UIViewRepresentable {
+    @Binding var selection: Int
+    let values: [Int]
+    let rowHeight: CGFloat
+    let fontSize: CGFloat
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeUIView(context: Context) -> UIPickerView {
+        let pv = UIPickerView()
+        pv.delegate = context.coordinator
+        pv.dataSource = context.coordinator
+        pv.backgroundColor = .clear
+        if let idx = values.firstIndex(of: selection) {
+            pv.selectRow(idx, inComponent: 0, animated: false)
+        }
+        return pv
+    }
+
+    func updateUIView(_ uiView: UIPickerView, context: Context) {
+        context.coordinator.parent = self
+        uiView.reloadAllComponents()
+        if let idx = values.firstIndex(of: selection),
+           uiView.selectedRow(inComponent: 0) != idx {
+            uiView.selectRow(idx, inComponent: 0, animated: false)
+        }
+    }
+
+    /// Without this, UIPickerView reports a ~320 pt intrinsic width and
+    /// two side-by-side pickers blow past the iPhone screen, stretching
+    /// every parent container with it.
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UIPickerView, context: Context) -> CGSize? {
+        CGSize(
+            width: proposal.width ?? 120,
+            height: proposal.height ?? (rowHeight * 5)
+        )
+    }
+
+    final class Coordinator: NSObject, UIPickerViewDelegate, UIPickerViewDataSource {
+        var parent: NumberWheel
+        init(_ parent: NumberWheel) { self.parent = parent }
+
+        func numberOfComponents(in pickerView: UIPickerView) -> Int { 1 }
+
+        func pickerView(_ pickerView: UIPickerView, numberOfRowsInComponent component: Int) -> Int {
+            parent.values.count
+        }
+
+        func pickerView(_ pickerView: UIPickerView, rowHeightForComponent component: Int) -> CGFloat {
+            parent.rowHeight
+        }
+
+        func pickerView(_ pickerView: UIPickerView,
+                        viewForRow row: Int,
+                        forComponent component: Int,
+                        reusing view: UIView?) -> UIView {
+            let label = (view as? UILabel) ?? UILabel()
+            label.text = String(format: "%02d", parent.values[row])
+            label.font = .monospacedDigitSystemFont(ofSize: parent.fontSize, weight: .regular)
+            label.textAlignment = .center
+            return label
+        }
+
+        func pickerView(_ pickerView: UIPickerView, didSelectRow row: Int, inComponent component: Int) {
+            parent.selection = parent.values[row]
+        }
+    }
+}
+
+// MARK: - Previews
+
+#Preview("Set alarm (idle)") {
+    MainView()
+        .environmentObject(AlarmStore())
+        .preferredColorScheme(.dark)
+}
+
