@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>aka Alarm — Privacy Policy</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg-grad: linear-gradient(180deg, #0a1740 0%, #1078ff 100%);
+      --fg: #f5f1e6;
+      --muted: #c9c4b5;
+      --accent: #ffb454;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font: 16px/1.6 -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, system-ui, sans-serif;
+      background: var(--bg-grad);
+      color: var(--fg);
+      min-height: 100vh;
+    }
+    main {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 64px 24px 48px;
+    }
+    h1 { font-size: 36px; font-weight: 200; letter-spacing: -0.5px; margin: 0 0 4px; }
+    .updated { color: var(--muted); margin: 0 0 32px; font-size: 14px; }
+    h2 { font-size: 20px; font-weight: 500; margin: 32px 0 8px; }
+    p, li { color: var(--muted); margin: 0 0 12px; }
+    ul { padding-left: 20px; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .back { margin-bottom: 24px; display: inline-block; }
+  </style>
+</head>
+<body>
+  <main>
+    <a class="back" href="index.html">← aka Alarm</a>
+    <h1>Privacy Policy</h1>
+    <p class="updated">Last updated: 14 May 2026</p>
+
+    <p>aka Alarm ("the app") is designed with privacy at its core. The short version: <strong>nothing leaves your device</strong>. There is no server, no account, no analytics, no tracking, no third-party SDKs.</p>
+
+    <h2>What the app accesses</h2>
+    <ul>
+      <li><strong>Microphone</strong>. The app uses the microphone to measure the ambient sound level of your room while an alarm is set. It establishes a rolling baseline and detects when the level rises above it — which is the cue to wake you. The microphone is active only between the moment you tap <em>Start</em> and the moment the alarm ends or you cancel it.</li>
+      <li><strong>Motion sensors</strong>. While the alarm is firing, the app reads the gyroscope so a light movement of the phone triggers a snooze. This data is read in real time and is not stored.</li>
+    </ul>
+
+    <h2>What the app does <em>not</em> do</h2>
+    <ul>
+      <li>The app does <strong>not record audio</strong>. Microphone samples are processed on the fly to compute a sound level (in dBFS) and then discarded. No audio buffer is ever written to disk.</li>
+      <li>The app does <strong>not transmit any data</strong> off your device. There are no network requests of any kind.</li>
+      <li>The app does <strong>not collect, store, or share</strong> any personal information.</li>
+      <li>The app does <strong>not use third-party analytics, advertising, or tracking SDKs</strong>.</li>
+    </ul>
+
+    <h2>Permissions you can revoke</h2>
+    <p>You can revoke microphone access at any time in iOS Settings → aka Alarm → Microphone. Without microphone access the spike-detection feature cannot work, but the alarm will still fire at the end of the wake-up window so you don't oversleep.</p>
+
+    <h2>Children's privacy</h2>
+    <p>The app is rated 4+ on the App Store. It does not knowingly collect data from anyone, including children.</p>
+
+    <h2>Changes to this policy</h2>
+    <p>If this policy ever changes, the updated version will appear at this URL with a new "Last updated" date.</p>
+
+    <h2>Contact</h2>
+    <p>Questions: <a href="mailto:akaseeingred@gmail.com">akaseeingred@gmail.com</a></p>
+    <p>Source code: <a href="https://github.com/akaseeingred/aka-alarm">github.com/akaseeingred/aka-alarm</a></p>
+  </main>
+</body>
+</html>

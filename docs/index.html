@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>aka Alarm</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #0a1740;
+      --bg-grad: linear-gradient(180deg, #0a1740 0%, #1078ff 100%);
+      --fg: #f5f1e6;
+      --muted: #c9c4b5;
+      --accent: #ffb454;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font: 16px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, system-ui, sans-serif;
+      background: var(--bg-grad);
+      color: var(--fg);
+      min-height: 100vh;
+    }
+    main {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 80px 24px 48px;
+    }
+    h1 { font-size: 44px; font-weight: 200; letter-spacing: -0.5px; margin: 0 0 8px; }
+    .tag { color: var(--muted); margin: 0 0 48px; }
+    section { margin-bottom: 32px; }
+    section h2 { font-size: 22px; font-weight: 500; margin: 0 0 8px; }
+    section p { margin: 0 0 12px; color: var(--muted); }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    footer {
+      margin-top: 64px;
+      padding-top: 24px;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      color: var(--muted);
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>aka Alarm</h1>
+    <p class="tag">A gentler alarm. Pick a 30-minute window; the app listens for when you start stirring and wakes you with a soft fade-in instead of jolting you out of bed at a fixed time.</p>
+
+    <section>
+      <h2>How it works</h2>
+      <p>Choose your wake-up window. The app builds a rolling baseline of your room's ambient sound. When the window opens, the first time the sound level rises meaningfully above that baseline — you turn over, sigh, shift the duvet — the alarm fires. If nothing happens, it fires at the end of the window so you never oversleep.</p>
+      <p>The alarm tone fades from 1 % to 100 % over a minute. Snooze by lightly moving the phone — no fumbling for a button. Slide up anywhere to dismiss.</p>
+    </section>
+
+    <section>
+      <h2>Privacy</h2>
+      <p>Audio stays on your device. We never record, store, or transmit it. See the <a href="privacy.html">privacy policy</a> for details.</p>
+    </section>
+
+    <section>
+      <h2>Source code</h2>
+      <p>aka Alarm is open source under the MIT licence: <a href="https://github.com/akaseeingred/aka-alarm">github.com/akaseeingred/aka-alarm</a></p>
+    </section>
+
+    <footer>© 2026 aka Alarm. Made with care.</footer>
+  </main>
+</body>
+</html>
