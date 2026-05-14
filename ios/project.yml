@@ -1,0 +1,53 @@
+name: AkaAlarm
+options:
+  bundleIdPrefix: com.aka
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: ""
+    SWIFT_STRICT_CONCURRENCY: minimal
+
+targets:
+  AkaAlarm:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+    resources:
+      - path: Resources/Assets.xcassets
+    info:
+      path: Resources/Info.plist
+      properties:
+        CFBundleDisplayName: aka Alarm
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSRequiresIPhoneOS: true
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UIBackgroundModes:
+          - audio
+        UILaunchScreen:
+          UIColorName: ""
+        UIStatusBarStyle: UIStatusBarStyleDefault
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        NSMicrophoneUsageDescription: "aka Alarm listens to ambient sound to learn your room's baseline noise and wake you within your chosen window when you start stirring."
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.aka.alarm
+        PRODUCT_NAME: "aka Alarm"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        TARGETED_DEVICE_FAMILY: "1"
+        SUPPORTS_MACCATALYST: NO
+        SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
