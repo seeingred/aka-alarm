@@ -80,6 +80,7 @@ private struct SetAlarmView: View {
             .padding(.bottom, 12)
         }
         .padding()
+        .onAppear { store.resetSelectedToCurrentWindow() }
     }
 
     private var windowLabel: String {

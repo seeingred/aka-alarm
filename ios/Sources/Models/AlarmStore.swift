@@ -41,8 +41,8 @@ final class AlarmStore: ObservableObject {
     @Published var micLevelDB: Double = Tuning.dbFloor
     @Published var baselineDB: Double = Tuning.dbFloor
 
-    @Published var selectedHour: Int = 7
-    @Published var selectedMinute: Int = 0
+    @Published var selectedHour: Int
+    @Published var selectedMinute: Int
     @Published var micPermissionDenied: Bool = false
 
     private let mic = MicMonitor()
@@ -52,6 +52,10 @@ final class AlarmStore: ObservableObject {
     private var phaseTimer: Timer?
 
     init() {
+        let (h, m) = Self.currentWindowDefault()
+        self.selectedHour = h
+        self.selectedMinute = m
+
         mic.onLevelUpdate = { [weak self] db in
             DispatchQueue.main.async { self?.micLevelDB = db }
         }
@@ -87,6 +91,22 @@ final class AlarmStore: ObservableObject {
 
     func cancelAlarm() {
         transition(to: .idle)
+    }
+
+    /// Snap the pickers to the wake window that currently contains "now"
+    /// (e.g. 18:38 → 18:30, giving a 18:30–19:00 window). Call when the
+    /// set-alarm screen appears.
+    func resetSelectedToCurrentWindow() {
+        let (h, m) = Self.currentWindowDefault()
+        selectedHour = h
+        selectedMinute = m
+    }
+
+    private static func currentWindowDefault(now: Date = .now) -> (Int, Int) {
+        let comps = Calendar.current.dateComponents([.hour, .minute], from: now)
+        let h = comps.hour ?? 0
+        let m = comps.minute ?? 0
+        return (h, (m / 15) * 15)
     }
 
     // MARK: Internal events
