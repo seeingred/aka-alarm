@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import AVFoundation
 
 enum AlarmPhase: Equatable {
     case idle
@@ -115,6 +116,11 @@ final class AlarmStore: ObservableObject {
             mic.stop()
             motion.stop()
             player.stop()
+            // Centralized session deactivation: the monitors and player no longer
+            // touch session lifetime themselves, which avoids races between mic-stop
+            // and player-start when the alarm fires inside an active window.
+            try? AVAudioSession.sharedInstance()
+                .setActive(false, options: [.notifyOthersOnDeactivation])
             micLevelDB = Tuning.dbFloor
             baselineDB = Tuning.dbFloor
 

@@ -57,7 +57,18 @@ final class MicMonitor {
         try session.setActive(true, options: [])
 
         let input = engine.inputNode
+        // Defensive: clear any tap left over from a previous start/stop cycle.
+        // installTap on an already-tapped bus throws and leaves the engine inert.
+        input.removeTap(onBus: 0)
+
         let format = input.inputFormat(forBus: 0)
+        guard format.sampleRate > 0, format.channelCount > 0 else {
+            // Audio session category change hasn't surfaced an input yet. Bail loudly
+            // so the caller knows the mic isn't actually running.
+            print("MicMonitor: input format unavailable (sampleRate=\(format.sampleRate), channels=\(format.channelCount))")
+            return
+        }
+
         let now = ProcessInfo.processInfo.systemUptime
         cellSamples.removeAll(keepingCapacity: true)
         baselineRing.removeAll(keepingCapacity: true)
@@ -79,7 +90,7 @@ final class MicMonitor {
             _running = false
             _spikeDetectionEnabled = false
         }
-        try? session.setActive(false, options: [.notifyOthersOnDeactivation])
+        // Session lifecycle is owned by AlarmStore; do not deactivate here.
     }
 
     func setSpikeDetectionEnabled(_ enabled: Bool) {

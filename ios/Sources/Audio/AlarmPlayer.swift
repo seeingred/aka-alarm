@@ -18,6 +18,18 @@ final class AlarmPlayer {
         }
         guard let buffer else { return }
 
+        // Reconfigure the shared audio session for *loud playback*. MicMonitor uses
+        // `.measurement` mode which keeps mic input clean but attenuates output
+        // significantly. By the time we reach here, MicMonitor is stopped, so we can
+        // safely flip to plain `.playback` — speaker-routed, ignores silent mode.
+        let session = AVAudioSession.sharedInstance()
+        do {
+            try session.setCategory(.playback, mode: .default, options: [.duckOthers])
+            try session.setActive(true, options: [])
+        } catch {
+            print("AlarmPlayer session setup failed: \(error)")
+        }
+
         if !connected {
             engine.attach(player)
             engine.connect(player, to: engine.mainMixerNode, format: buffer.format)
@@ -41,6 +53,7 @@ final class AlarmPlayer {
         fadeTimer = nil
         if player.isPlaying { player.stop() }
         if engine.isRunning { engine.stop() }
+        // Session lifecycle is owned by AlarmStore; do not deactivate here.
     }
 
     private func startFade() {
@@ -70,12 +83,18 @@ final class AlarmPlayer {
         let beepFrames = Int(sampleRate * beepDuration)
         let rampSeconds = 0.02
         let twoPi = 2 * Double.pi
+        // Three-harmonic blend. Coefficients chosen so the worst-case peak
+        // (all sines aligning at +1) stays just under 1.0 to avoid clipping.
+        let h1: Double = 0.55  // 880 Hz
+        let h2: Double = 0.30  // 1320 Hz
+        let h3: Double = 0.13  // 1760 Hz   sum = 0.98
 
         for i in 0..<Int(frames) {
             if i < beepFrames {
                 let t = Double(i) / sampleRate
                 let s1 = sin(twoPi * 880 * t)
                 let s2 = sin(twoPi * 1320 * t)
+                let s3 = sin(twoPi * 1760 * t)
                 let elapsed = t
                 let env: Double
                 if elapsed < rampSeconds {
@@ -85,7 +104,7 @@ final class AlarmPlayer {
                 } else {
                     env = 1
                 }
-                ch[i] = Float(env * 0.4 * (s1 + 0.5 * s2))
+                ch[i] = Float(env * (h1 * s1 + h2 * s2 + h3 * s3))
             } else {
                 ch[i] = 0
             }
