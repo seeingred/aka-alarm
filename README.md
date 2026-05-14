@@ -1,10 +1,8 @@
 # aka Alarm
 
-An iOS alarm app that wakes you within a 30-minute window by listening for the
-moment you start stirring, instead of jolting you out of bed at an arbitrary
-moment.
-
-> Status: iOS scaffold only. Android to follow.
+An alarm app for iOS and Android that wakes you within a 30-minute window by
+listening for the moment you start stirring, instead of jolting you out of bed
+at an arbitrary moment.
 
 ## How it works
 
@@ -66,10 +64,29 @@ If `xcodebuild` complains that *"iOS 26.5 is not installed"*, open Xcode →
 Settings → Components and download the iOS 26 platform support / simulator
 runtime, then retry.
 
+## Android build & run
+
+Requirements: Android Studio (latest), JDK 17+, Android SDK platform 36.
+
+```sh
+cd android
+echo "sdk.dir=$HOME/Library/Android/sdk" > local.properties   # first time only
+./gradlew assembleDebug
+```
+
+The debug APK lands at `android/app/build/outputs/apk/debug/app-debug.apk`.
+For interactive development just open the `android/` folder in Android Studio
+— it will sync the project and Gradle wrapper automatically. Min SDK is
+Android 14 (API 34); the foreground-service path needs the
+`FOREGROUND_SERVICE_MICROPHONE` permission that was introduced there.
+
+`android/local.properties` is gitignored because it points at your machine's
+local SDK path.
+
 ## Project layout
 
 ```
-ios/
+ios/                          # native Swift + SwiftUI, iOS 26+
   project.yml                 # xcodegen spec (source of truth)
   Sources/
     AkaAlarmApp.swift         # @main and root view switch
@@ -81,7 +98,26 @@ ios/
     Views/MainView.swift      # set-alarm + monitoring screens
     Views/AlarmView.swift     # alarm + snoozing screen
   Resources/
-    Assets.xcassets           # accent color + app icon placeholder
+    Assets.xcassets           # icon + accent colour
+
+android/                      # native Kotlin + Jetpack Compose, minSdk 34
+  app/src/main/
+    AndroidManifest.xml
+    kotlin/com/aka/alarm/
+      AlarmApp.kt             # Application — holds the AlarmStore singleton
+      MainActivity.kt         # ComposeActivity, runtime permissions
+      Tuning.kt               # mirrors iOS Tuning.swift
+      model/AlarmPhase.kt
+      model/AlarmStore.kt
+      audio/MicMonitor.kt     # AudioRecord (UNPROCESSED) + RMS + baseline ring
+      audio/AlarmPlayer.kt    # AudioTrack + procedural tone + Vibrator pulses
+      motion/MotionMonitor.kt # SensorManager (TYPE_GYROSCOPE)
+      service/AlarmService.kt # ForegroundService that keeps mic alive overnight
+      ui/Theme.kt             # Material 3 with dawn-sky gradient
+      ui/MainScreen.kt        # set + monitoring screens
+      ui/AlarmScreen.kt       # alarm + snoozing
+      ui/NumberWheel.kt       # snap-fling Compose wheel picker
+    res/                      # adaptive launcher icon + themes
 ```
 
 ## Tuning

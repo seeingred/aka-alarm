@@ -22,3 +22,16 @@ ios/Local.xcconfig
 Packages/
 *.xcworkspace/xcuserdata
 .claude
+
+# Android
+android/local.properties
+android/.gradle/
+android/.idea/
+android/.kotlin/
+android/app/build/
+android/build/
+android/captures/
+android/*.iml
+android/app/*.iml
+android/.cxx/
+android/release/

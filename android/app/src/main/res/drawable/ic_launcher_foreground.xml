@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Adaptive icons reserve the outer 18dp on each side for system masking,
+         so all artwork stays within the central 72dp safe zone (centered at 54,54). -->
+
+    <!-- Dial circle, r=22 -->
+    <path
+        android:strokeColor="#FFF6E5"
+        android:strokeWidth="1.4"
+        android:strokeAlpha="0.45"
+        android:fillColor="#00000000"
+        android:pathData="M 76 54 A 22 22 0 1 1 32 54 A 22 22 0 1 1 76 54 Z" />
+
+    <!-- Wake-window arc: top-right quadrant of dial -->
+    <path
+        android:strokeColor="#FFB454"
+        android:strokeWidth="3.4"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M 54 32 A 22 22 0 0 1 76 54" />
+
+    <!-- Listening glyph: center dot + concentric rings -->
+    <path
+        android:fillColor="#FFF6E5"
+        android:pathData="M 55.5 54 A 1.5 1.5 0 1 1 52.5 54 A 1.5 1.5 0 1 1 55.5 54 Z" />
+    <path
+        android:strokeColor="#FFF6E5"
+        android:strokeWidth="0.6"
+        android:strokeAlpha="0.78"
+        android:fillColor="#00000000"
+        android:pathData="M 59 54 A 5 5 0 1 1 49 54 A 5 5 0 1 1 59 54 Z" />
+    <path
+        android:strokeColor="#FFF6E5"
+        android:strokeWidth="0.5"
+        android:strokeAlpha="0.55"
+        android:fillColor="#00000000"
+        android:pathData="M 63 54 A 9 9 0 1 1 45 54 A 9 9 0 1 1 63 54 Z" />
+</vector>
