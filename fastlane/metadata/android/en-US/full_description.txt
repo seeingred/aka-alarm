@@ -1,0 +1,16 @@
+aka Alarm wakes you at the right moment within a 30-minute window you choose, instead of jolting you out of bed at a fixed time.
+
+How it works: while an alarm is armed the app uses the microphone to measure the ambient sound level of your room. It maintains a rolling 5-minute baseline of "how quiet it really is" and watches for the level to rise above that baseline by a configurable threshold. When that happens — you turn over, sigh, shift the duvet — the alarm fires. If nothing happens, the alarm fires at the end of the window so you never oversleep.
+
+Privacy: the microphone is active only while an alarm is set, and audio is processed in memory then immediately discarded. No audio buffer is ever written to disk, persisted, or transmitted off your device. There is no network code in this app at all — no analytics, no crash reporting, no third-party SDKs.
+
+Features:
+
+• Wake-up window with smart spike detection on the microphone
+• 60-second gradual volume fade-in for the alarm tone
+• Motion-driven snooze (lightly move the phone) with random duration clamped to the remaining window
+• Slide up anywhere to dismiss
+• Foreground service keeps the alarm reliable overnight
+• Material 3 UI with dark + light mode
+
+aka Alarm is open source under the MIT licence: https://github.com/seeingred/aka-alarm
