@@ -104,6 +104,26 @@ class AlarmStore(private val app: Application) {
         transition(AlarmPhase.Idle)
     }
 
+    // -----------------------------------------------------------------------
+    // Debug-only state forcing. Used for capturing Play-listing screenshots in
+    // the simulator where the mic input loop makes natural spike detection
+    // unpredictable. Triggered from MainActivity's BroadcastReceiver. The
+    // methods are no-ops if the emitter never broadcasts, so they're harmless
+    // to leave compiled into release builds too.
+    // -----------------------------------------------------------------------
+
+    fun debugForceAlarming() {
+        val end = System.currentTimeMillis() + 30 * 60 * 1000L
+        transition(AlarmPhase.Alarming(end))
+    }
+
+    fun debugForceSnoozing() {
+        val now = System.currentTimeMillis()
+        val end = phase.windowEnd ?: (now + 30 * 60 * 1000L)
+        val until = now + 3 * 60 * 1000L
+        transition(AlarmPhase.Snoozing(until, end))
+    }
+
     /** Snap pickers to the 15-minute boundary containing "now". */
     fun resetSelectedToCurrentWindow(now: Long = System.currentTimeMillis()) {
         val cal = Calendar.getInstance().apply { timeInMillis = now }

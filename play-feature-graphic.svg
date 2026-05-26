@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Google Play feature graphic for aka Alarm.
+  1024×500, full bleed, no alpha. Shown at the top of the Play Store listing.
+  Mirrors the app icon: dawn-sky gradient, amber wake-window arc, listening glyph.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 500" width="1024" height="500">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#0A1740"/>
+      <stop offset="55%"  stop-color="#0A3B96"/>
+      <stop offset="100%" stop-color="#1A86FF"/>
+    </linearGradient>
+    <linearGradient id="amber" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"   stop-color="#FFE6A8"/>
+      <stop offset="55%"  stop-color="#FFB454"/>
+      <stop offset="100%" stop-color="#FF8A1A"/>
+    </linearGradient>
+    <filter id="glow" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="10" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1024" height="500" fill="url(#sky)"/>
+
+  <!-- Brand mark (icon condensed for banner) — left side -->
+  <g transform="translate(60, 70)">
+    <!-- Dial -->
+    <circle cx="180" cy="180" r="170"
+            fill="none" stroke="#FFF6E5" stroke-width="8" opacity="0.45"/>
+    <!-- Wake-window arc: top-right quadrant -->
+    <path d="M 180 10 A 170 170 0 0 1 350 180"
+          fill="none" stroke="url(#amber)" stroke-width="22"
+          stroke-linecap="round" filter="url(#glow)"/>
+    <!-- Listening glyph -->
+    <circle cx="180" cy="180" r="10" fill="#FFF6E5"/>
+    <circle cx="180" cy="180" r="32" fill="none"
+            stroke="#FFF6E5" stroke-width="4" opacity="0.78"/>
+    <circle cx="180" cy="180" r="58" fill="none"
+            stroke="#FFF6E5" stroke-width="3" opacity="0.55"/>
+    <circle cx="180" cy="180" r="86" fill="none"
+            stroke="#FFF6E5" stroke-width="3" opacity="0.32"/>
+  </g>
+
+  <!-- Wordmark + tagline — right side -->
+  <text x="470" y="240"
+        font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif"
+        font-size="96" font-weight="200" fill="#FFF6E5">aka Alarm</text>
+
+  <text x="470" y="304"
+        font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif"
+        font-size="34" font-weight="300" fill="#FFB454">Wake up gently</text>
+
+  <text x="470" y="358"
+        font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif"
+        font-size="20" font-weight="300" fill="#FFF6E5" opacity="0.65">
+    Wakes you within your 30-minute window
+  </text>
+</svg>

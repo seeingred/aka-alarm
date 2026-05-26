@@ -113,7 +113,7 @@ private fun SetAlarmView(store: AlarmStore, onStart: () -> Unit) {
             onClick = onStart,
             shape = RoundedCornerShape(percent = 50),
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color.White.copy(alpha = 0.18f),
+                containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.14f),
                 contentColor = MaterialTheme.colorScheme.onSurface,
             ),
             modifier = Modifier
@@ -227,13 +227,14 @@ private fun MicLevelBar(
         val maxWidthPx = with(LocalDensity.current) { maxWidth.toPx() }
         val curFrac = normalize(currentDb).toFloat()
         val baselineFrac = normalize(baselineDb).toFloat()
+        val onSurface = MaterialTheme.colorScheme.onSurface
 
         // Track
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
-                    color = Color.White.copy(alpha = 0.08f),
+                    color = onSurface.copy(alpha = 0.08f),
                     shape = RoundedCornerShape(percent = 50)
                 )
         )
@@ -243,7 +244,7 @@ private fun MicLevelBar(
                 .fillMaxHeight()
                 .fillMaxWidth(curFrac)
                 .background(
-                    color = Color.White.copy(alpha = 0.35f),
+                    color = onSurface.copy(alpha = 0.32f),
                     shape = RoundedCornerShape(percent = 50)
                 )
         )

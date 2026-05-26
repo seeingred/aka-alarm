@@ -1,6 +1,10 @@
 package com.aka.alarm
 
 import android.Manifest
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -10,14 +14,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
@@ -26,7 +25,6 @@ import com.aka.alarm.model.AlarmStore
 import com.aka.alarm.ui.AkaAlarmTheme
 import com.aka.alarm.ui.AlarmScreen
 import com.aka.alarm.ui.MainScreen
-import kotlinx.coroutines.flow.MutableSharedFlow
 
 class MainActivity : ComponentActivity() {
 
@@ -100,5 +98,37 @@ class MainActivity : ComponentActivity() {
             PackageManager.PERMISSION_GRANTED -> store.startAlarm()
             else -> requestMicPermission.launch(Manifest.permission.RECORD_AUDIO)
         }
+    }
+
+    // ----- Debug-only broadcast receiver for screenshot capture ----------
+    // Forces phase transitions via ADB:
+    //   adb shell am broadcast -a com.aka.alarm.DEBUG -e action fire
+    //   adb shell am broadcast -a com.aka.alarm.DEBUG -e action snooze
+    //   adb shell am broadcast -a com.aka.alarm.DEBUG -e action cancel
+    // Harmless to ship — the broadcast action is private and only registered
+    // while the activity is in the foreground.
+    private val debugReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.getStringExtra("action")) {
+                "fire" -> store.debugForceAlarming()
+                "snooze" -> store.debugForceSnoozing()
+                "cancel" -> store.cancelAlarm()
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        ContextCompat.registerReceiver(
+            this,
+            debugReceiver,
+            IntentFilter("com.aka.alarm.DEBUG"),
+            ContextCompat.RECEIVER_EXPORTED
+        )
+    }
+
+    override fun onPause() {
+        super.onPause()
+        try { unregisterReceiver(debugReceiver) } catch (_: IllegalArgumentException) {}
     }
 }

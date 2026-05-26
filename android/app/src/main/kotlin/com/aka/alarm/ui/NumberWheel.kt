@@ -90,7 +90,7 @@ fun NumberWheel(
                 .padding(horizontal = 12.dp)
                 .height(rowHeight)
                 .background(
-                    color = Color.White.copy(alpha = 0.12f),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f),
                     shape = RoundedCornerShape(percent = 50)
                 )
         )
