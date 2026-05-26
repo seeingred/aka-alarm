@@ -70,7 +70,9 @@ class MicMonitor {
 
     private fun run(r: AudioRecord) {
         val buf = FloatArray(FRAMES_PER_READ)
-        var cellSamples = ArrayList<Double>(64)
+        var cellSumSquares = 0.0          // cell-mean RMS basis → drives baseline
+        var cellSampleCount = 0
+        var cellPeakDb = Tuning.DB_FLOOR   // loudest moment in the cell → drives spike
         var cellStartNanos = System.nanoTime()
         val baselineRing = ArrayDeque<Double>()
         val baselineCapacity = (Tuning.baselineWindow / Tuning.baselineCellSeconds)
@@ -89,21 +91,29 @@ class MicMonitor {
                 sumSquares += v * v
             }
             val rms = sqrt(sumSquares / n)
-            val db = maxOf(Tuning.DB_FLOOR, 20 * log10(maxOf(rms, 1e-9)))
+            val frameDb = maxOf(Tuning.DB_FLOOR, 20 * log10(maxOf(rms, 1e-9)))
 
             val nowNanos = System.nanoTime()
             if (nowNanos - lastEmitNanos >= emitIntervalNanos) {
                 lastEmitNanos = nowNanos
-                mainHandler.post { onLevelUpdate?.invoke(db) }
+                mainHandler.post { onLevelUpdate?.invoke(frameDb) }
             }
 
-            cellSamples.add(db)
+            cellSumSquares += sumSquares
+            cellSampleCount += n
+            if (frameDb > cellPeakDb) cellPeakDb = frameDb
+
             if (nowNanos - cellStartNanos >= cellSpanNanos) {
-                val cellAvg = cellSamples.average()
-                cellSamples = ArrayList(64)
+                val cellMeanRms = sqrt(cellSumSquares / cellSampleCount.coerceAtLeast(1))
+                val cellMeanDb = maxOf(Tuning.DB_FLOOR, 20 * log10(maxOf(cellMeanRms, 1e-9)))
+                val cellPeak = cellPeakDb
+
+                cellSumSquares = 0.0
+                cellSampleCount = 0
+                cellPeakDb = Tuning.DB_FLOOR
                 cellStartNanos = nowNanos
 
-                baselineRing.addLast(cellAvg)
+                baselineRing.addLast(cellMeanDb)
                 while (baselineRing.size > baselineCapacity) baselineRing.removeFirst()
                 val baseline = baselineRing.average()
                 mainHandler.post { onBaselineUpdate?.invoke(baseline) }
@@ -112,7 +122,7 @@ class MicMonitor {
                     val priorAvg = baselineRing.asSequence()
                         .take(baselineRing.size - 1)
                         .average()
-                    if (cellAvg > priorAvg + Tuning.SPIKE_THRESHOLD_DB) {
+                    if (cellPeak > priorAvg + Tuning.SPIKE_THRESHOLD_DB) {
                         mainHandler.post { onSpike?.invoke() }
                     }
                 }

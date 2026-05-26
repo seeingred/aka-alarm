@@ -59,7 +59,6 @@ fun MainScreen(store: AlarmStore, onStart: () -> Unit) {
 
 @Composable
 private fun SetAlarmView(store: AlarmStore, onStart: () -> Unit) {
-    LaunchedEffect(Unit) { store.resetSelectedToCurrentWindow() }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -260,8 +259,12 @@ private fun MicLevelBar(
 }
 
 private fun normalize(db: Double): Double {
-    val clamped = db.coerceIn(Tuning.DB_FLOOR, 0.0)
-    return (clamped - Tuning.DB_FLOOR) / -Tuning.DB_FLOOR
+    // Display uses `DISPLAY_DB_FLOOR` (tighter than `DB_FLOOR`) so subtle ambient
+    // and movement levels visibly fill the bar at night. The detector itself
+    // still works against the full `DB_FLOOR`.
+    val floor = Tuning.DISPLAY_DB_FLOOR
+    val clamped = db.coerceIn(floor, 0.0)
+    return (clamped - floor) / -floor
 }
 
 // MARK: - Slide hint

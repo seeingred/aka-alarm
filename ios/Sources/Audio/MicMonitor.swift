@@ -41,7 +41,9 @@ final class MicMonitor {
     private var silentAttached = false
 
     // Audio-thread-only state.
-    private var cellSamples: [Double] = []
+    private var cellSumSquares: Double = 0       // for cell-mean RMS (drives baseline)
+    private var cellSampleCount: Int = 0
+    private var cellPeakDB: Double = Tuning.dbFloor // loudest moment in the cell (drives spike)
     private var cellStart: TimeInterval = 0
     private var baselineRing: [Double] = []
     private var lastEmit: TimeInterval = 0
@@ -50,10 +52,19 @@ final class MicMonitor {
     private let lock = NSLock()
     private var _spikeDetectionEnabled = false
     private var _running = false
+    /// Time (systemUptime) of the most recent buffer received by the audio tap.
+    /// Audio thread writes, main thread reads for the watchdog.
+    private var _lastBufferTime: TimeInterval = 0
+    /// Set true when the watchdog decides we're stuck (≥ watchdogTimeout without
+    /// a buffer). Cleared when buffers resume. Used to debounce the
+    /// onInterruption(true → false) edge to a single round-trip.
+    private var _wasStuck = false
 
-    // Notification observers.
+    // Notification observers + debounce/watchdog plumbing (all main-thread).
     private var routeChangeObserver: NSObjectProtocol?
     private var interruptionObserver: NSObjectProtocol?
+    private var routeChangeWork: DispatchWorkItem?
+    private var watchdogTimer: Timer?
 
     var isRunning: Bool { lockedRead { _running } }
 
@@ -84,12 +95,20 @@ final class MicMonitor {
 
         try configureEngineForCurrentRoute()
 
-        lockedWrite { _running = true }
+        lockedWrite {
+            _running = true
+            _lastBufferTime = ProcessInfo.processInfo.systemUptime
+            _wasStuck = false
+        }
         registerObservers()
+        startWatchdog()
     }
 
     func stop() {
         if !isRunning { return }
+        stopWatchdog()
+        routeChangeWork?.cancel()
+        routeChangeWork = nil
         unregisterObservers()
 
         engine.inputNode.removeTap(onBus: 0)
@@ -99,6 +118,7 @@ final class MicMonitor {
         lockedWrite {
             _running = false
             _spikeDetectionEnabled = false
+            _wasStuck = false
         }
         // Session lifecycle is owned by AlarmStore; do not deactivate here.
     }
@@ -125,7 +145,9 @@ final class MicMonitor {
         }
 
         let now = ProcessInfo.processInfo.systemUptime
-        cellSamples.removeAll(keepingCapacity: true)
+        cellSumSquares = 0
+        cellSampleCount = 0
+        cellPeakDB = Tuning.dbFloor
         baselineRing.removeAll(keepingCapacity: true)
         cellStart = now
         lastEmit = 0
@@ -198,13 +220,67 @@ final class MicMonitor {
 
     private func handleRouteChange(_ notification: Notification) {
         guard isRunning else { return }
-        // Any route change can invalidate the format the input node was using. The
-        // safe play is to always rebuild — covers AirPods connect/disconnect, wired
-        // headphones, BT car kit, etc.
-        do {
-            try configureEngineForCurrentRoute()
-        } catch {
-            print("MicMonitor: engine restart after route change failed: \(error)")
+        // Rapid AirPods on/off (or any cluster of route changes) used to overlap
+        // tear-down/rebuild cycles and wedge the engine. Debounce: only reconfigure
+        // once the changes quiet down for `Tuning.routeChangeDebounce`.
+        routeChangeWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.isRunning else { return }
+            do {
+                try self.configureEngineForCurrentRoute()
+            } catch {
+                print("MicMonitor: engine restart after route change failed: \(error)")
+            }
+        }
+        routeChangeWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Tuning.routeChangeDebounce, execute: work)
+    }
+
+    // MARK: Watchdog
+
+    /// `AVAudioSession.interruptionNotification` only fires for *exclusive* session
+    /// takeovers (phone call, Siri). When another app uses the `.playback` category
+    /// (YouTube, Spotify, browser video, etc.) the OS routes audio to them silently
+    /// without telling us, but our `.measurement`-mode tap stops receiving useful
+    /// buffers. The watchdog catches this by checking once a second whether we've
+    /// received a buffer recently; if not, we declare the mic stuck, notify the
+    /// user via `onInterruption(true)`, and rebuild the engine. When buffers resume,
+    /// `onInterruption(false)` clears the notification.
+    private func startWatchdog() {
+        stopWatchdog()
+        watchdogTimer = Timer.scheduledTimer(
+            withTimeInterval: Tuning.micWatchdogInterval,
+            repeats: true
+        ) { [weak self] _ in
+            self?.checkWatchdog()
+        }
+    }
+
+    private func stopWatchdog() {
+        watchdogTimer?.invalidate()
+        watchdogTimer = nil
+    }
+
+    private func checkWatchdog() {
+        guard isRunning else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        let (last, wasStuck) = lockedRead { (_lastBufferTime, _wasStuck) }
+        guard last > 0 else { return }
+        let gap = now - last
+
+        if !wasStuck, gap > Tuning.micWatchdogTimeout {
+            // Newly stuck. Notify and attempt rebuild.
+            lockedWrite { _wasStuck = true }
+            onInterruption?(true)
+            do {
+                try configureEngineForCurrentRoute()
+            } catch {
+                print("MicMonitor watchdog: rebuild failed: \(error)")
+            }
+        } else if wasStuck, gap < Tuning.micWatchdogTimeout {
+            // Recovered — buffers resumed (process() updated lastBufferTime).
+            lockedWrite { _wasStuck = false }
+            onInterruption?(false)
         }
     }
 
@@ -256,25 +332,37 @@ final class MicMonitor {
             sumSquares += v * v
         }
         let rms = sqrt(sumSquares / Double(frameLen))
-        let dB = max(Tuning.dbFloor, 20 * log10(max(rms, 1e-9)))
+        let frameDB = max(Tuning.dbFloor, 20 * log10(max(rms, 1e-9)))
 
         let now = ProcessInfo.processInfo.systemUptime
+        // Watchdog liveness stamp.
+        lockedWrite { _lastBufferTime = now }
 
         // UI throttle.
         if now - lastEmit >= 1.0 / Tuning.levelMeterHz {
             lastEmit = now
-            onLevelUpdate?(dB)
+            onLevelUpdate?(frameDB)
         }
 
-        // Aggregate into baseline buckets.
-        cellSamples.append(dB)
+        // Accumulate for cell mean (drives baseline) and track peak (drives spike).
+        cellSumSquares += sumSquares
+        cellSampleCount += frameLen
+        if frameDB > cellPeakDB { cellPeakDB = frameDB }
+
         if now - cellStart >= Tuning.baselineCellSeconds {
-            let cellAvg = cellSamples.reduce(0, +) / Double(cellSamples.count)
-            cellSamples.removeAll(keepingCapacity: true)
+            let cellMeanRMS = sqrt(cellSumSquares / Double(max(cellSampleCount, 1)))
+            let cellMeanDB = max(Tuning.dbFloor, 20 * log10(max(cellMeanRMS, 1e-9)))
+            let cellPeak = cellPeakDB
+
+            // Reset cell accumulators for the next window.
+            cellSumSquares = 0
+            cellSampleCount = 0
+            cellPeakDB = Tuning.dbFloor
             cellStart = now
 
+            // Baseline tracks the *mean* — stays stable across single loud events.
             let capacity = max(1, Int(Tuning.baselineWindow / Tuning.baselineCellSeconds))
-            baselineRing.append(cellAvg)
+            baselineRing.append(cellMeanDB)
             if baselineRing.count > capacity {
                 baselineRing.removeFirst(baselineRing.count - capacity)
             }
@@ -282,11 +370,13 @@ final class MicMonitor {
             onBaselineUpdate?(baseline)
 
             if spikeEnabled, baselineRing.count >= Tuning.minBaselineCells {
-                // Compare current cell to baseline excluding itself, so a single loud cell
-                // doesn't pull its own reference up.
+                // Spike comparator uses the *peak* moment in the cell so brief
+                // stirring sounds aren't washed out by the surrounding silence.
+                // Baseline reference excludes the just-appended cell so a single
+                // loud event can't pull its own threshold up.
                 let prior = baselineRing.dropLast()
                 let priorBaseline = prior.reduce(0, +) / Double(prior.count)
-                if cellAvg > priorBaseline + Tuning.spikeThresholdDB {
+                if cellPeak > priorBaseline + Tuning.spikeThresholdDB {
                     onSpike?()
                 }
             }

@@ -2,8 +2,8 @@
 
 ## 1.1.0 — unreleased
 
-Background-listening reliability + screen behaviour. iOS only (Android already
-benefited from these patterns via its ForegroundService design).
+Background-listening reliability + screen behaviour + spike-detection sensitivity.
+iOS-only resilience fixes; sensitivity tuning applies to both iOS and Android.
 
 **App Store "What's new" copy (paste-ready):**
 
@@ -21,6 +21,21 @@ benefited from these patterns via its ForegroundService design).
 - `UIApplication.shared.isIdleTimerDisabled` is toggled on whenever a non-idle phase is active, so the screen never auto-locks mid-alarm.
 - Monitoring and snoozing screens fade a black overlay from 0 → 0.85 opacity over 30 s. Tap anywhere to instantly reset the fade. Alarming phase stays at full brightness.
 - App lifecycle observer (`didBecomeActiveNotification`): if the OS suspended us and we just returned to foreground with an armed alarm, the mic engine is restarted automatically.
+
+**Spike detection (iOS + Android, identical algorithm)**
+
+- Detection now compares the *peak* dB moment within each 1-second cell against the rolling baseline, instead of comparing the cell mean. Short stirring sounds (200-500 ms sheet rustle, brief sigh, duvet shift) that previously got averaged into invisibility now trigger reliably. Baseline still uses the cell mean so single loud events can't pull the threshold up.
+- Spike threshold lowered from 6.0 dB to 4.5 dB above baseline. Combined with peak detection this is materially more sensitive without becoming a false-positive disaster.
+- New `displayDbFloor = -60` (vs detection floor at -80) means the live mic level bar fills more aggressively at night — subtle ambient and movement actually show up visually instead of barely moving from the left edge.
+
+**Mic-resilience round 2 (iOS)**
+
+- **Watchdog timer** in MicMonitor checks every second whether buffers are still arriving. If 3 s pass with no buffer while we think we're running, we declare the engine dead, fire the same "audio paused" local notification, and rebuild. Buffers resuming clears the notification. Catches the YouTube / Spotify / browser-video hijack case where iOS routes audio to the other app silently without sending a formal `interruptionNotification`. Previously the engine *thought* it was running but the tap had dried up.
+- **Debounced route-change handler.** Rapid AirPods on/off used to overlap multiple tear-down/rebuild cycles and wedge the engine. The route handler now coalesces clusters of changes into a single rebuild after 400 ms of quiet.
+
+**Persistence (iOS + Android)**
+
+- Last-confirmed alarm time (`selectedHour` + `selectedMinute`) is saved to UserDefaults / SharedPreferences when you tap Start, and restored on next launch. The set-alarm screen no longer auto-snaps to "now" on appearance — your previous selection sticks.
 
 ## 1.0.0 — 2026-05-14
 

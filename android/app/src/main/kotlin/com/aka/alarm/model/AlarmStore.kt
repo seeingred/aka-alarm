@@ -1,13 +1,16 @@
 package com.aka.alarm.model
 
 import android.app.Application
+import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
+import androidx.core.content.edit
 import com.aka.alarm.Tuning
 import com.aka.alarm.audio.AlarmPlayer
 import com.aka.alarm.audio.MicMonitor
@@ -59,19 +62,42 @@ class AlarmStore(private val app: Application) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var phaseJob: Job? = null
 
+    private val prefs: SharedPreferences =
+        app.getSharedPreferences("akaalarm", Context.MODE_PRIVATE)
+
     init {
-        resetSelectedToCurrentWindow()
+        val savedHour = prefs.getInt(KEY_HOUR, -1)
+        val savedMinute = prefs.getInt(KEY_MINUTE, -1)
+        if (savedHour in 0..23 && savedMinute in setOf(0, 15, 30, 45)) {
+            selectedHour = savedHour
+            selectedMinute = savedMinute
+        } else {
+            resetSelectedToCurrentWindow()
+        }
     }
 
     // MARK: User actions
 
     fun startAlarm(now: Long = System.currentTimeMillis()) {
+        persistSelection()
         val (start, end) = computeWindow(now)
         if (now >= start) {
             transition(AlarmPhase.InWindow(start, end))
         } else {
             transition(AlarmPhase.Monitoring(start, end))
         }
+    }
+
+    private fun persistSelection() {
+        prefs.edit {
+            putInt(KEY_HOUR, selectedHour)
+            putInt(KEY_MINUTE, selectedMinute)
+        }
+    }
+
+    private companion object {
+        const val KEY_HOUR = "selectedHour"
+        const val KEY_MINUTE = "selectedMinute"
     }
 
     fun cancelAlarm() {

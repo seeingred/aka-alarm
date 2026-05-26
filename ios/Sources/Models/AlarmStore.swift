@@ -55,7 +55,7 @@ final class AlarmStore: ObservableObject {
     private var appActiveObserver: NSObjectProtocol?
 
     init() {
-        let (h, m) = Self.currentWindowDefault()
+        let (h, m) = Self.loadPersistedSelection() ?? Self.currentWindowDefault()
         self.selectedHour = h
         self.selectedMinute = m
 
@@ -104,6 +104,7 @@ final class AlarmStore: ObservableObject {
             Task { _ = try? await UNUserNotificationCenter.current()
                 .requestAuthorization(options: [.alert, .sound]) }
 
+            self.persistSelection()
             let (start, end) = self.computeWindow(now: now)
             if now >= start {
                 self.transition(to: .inWindow(start: start, end: end))
@@ -111,6 +112,26 @@ final class AlarmStore: ObservableObject {
                 self.transition(to: .monitoring(start: start, end: end))
             }
         }
+    }
+
+    // MARK: Persistence
+
+    private static let kSelectedHour = "akaalarm.selectedHour"
+    private static let kSelectedMinute = "akaalarm.selectedMinute"
+
+    private func persistSelection() {
+        UserDefaults.standard.set(selectedHour, forKey: Self.kSelectedHour)
+        UserDefaults.standard.set(selectedMinute, forKey: Self.kSelectedMinute)
+    }
+
+    /// `nil` on a fresh install; subsequent launches read the last value the user
+    /// confirmed (i.e., from the last successful `startAlarm`).
+    private static func loadPersistedSelection() -> (Int, Int)? {
+        let defaults = UserDefaults.standard
+        guard defaults.object(forKey: kSelectedHour) != nil,
+              defaults.object(forKey: kSelectedMinute) != nil else { return nil }
+        return (defaults.integer(forKey: kSelectedHour),
+                defaults.integer(forKey: kSelectedMinute))
     }
 
     func cancelAlarm() {

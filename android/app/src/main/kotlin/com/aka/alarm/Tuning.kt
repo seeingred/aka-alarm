@@ -17,10 +17,18 @@ object Tuning {
     // Microphone / spike detection
     val baselineWindow: Duration = 5.minutes
     val baselineCellSeconds: Duration = 1.seconds
-    const val SPIKE_THRESHOLD_DB: Double = 6.0
+    /**
+     * How far above baseline (in dB) the *peak* moment in a cell must exceed for
+     * us to call it a spike. Using peak rather than the cell mean lets brief
+     * sheet rustles trigger the alarm — they'd otherwise vanish in a 1 s average.
+     */
+    const val SPIKE_THRESHOLD_DB: Double = 4.5
     const val MIN_BASELINE_CELLS: Int = 10
     const val LEVEL_METER_HZ: Double = 30.0
+    /** Detection floor: dB values below this clamp to silence. */
     const val DB_FLOOR: Double = -80.0
+    /** Display-only floor for the level meter. Tighter so subtle movement is visible. */
+    const val DISPLAY_DB_FLOOR: Double = -60.0
 
     // Motion / snooze nudge
     /** Gyroscope rotation magnitude (rad/s) above which a tilt counts as a snooze nudge. */

@@ -96,8 +96,6 @@ private struct SetAlarmView: View {
             .controlSize(.large)
         }
         .padding()
-        .onAppear { store.resetSelectedToCurrentWindow() }
-        .task { store.resetSelectedToCurrentWindow() }
     }
 
     private var windowLabel: String {
@@ -224,8 +222,11 @@ struct MicLevelView: View {
     }
 
     static func normalize(_ db: Double) -> CGFloat {
-        let clamped = max(Tuning.dbFloor, min(0, db))
-        return CGFloat((clamped - Tuning.dbFloor) / -Tuning.dbFloor)
+        // Display uses a tighter floor (`displayDbFloor`) than the detector so
+        // subtle ambient and movement levels visibly fill the bar at night.
+        let floor = Tuning.displayDbFloor
+        let clamped = max(floor, min(0, db))
+        return CGFloat((clamped - floor) / -floor)
     }
 }
 
