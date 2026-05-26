@@ -38,4 +38,12 @@ enum Tuning {
     // MARK: Vibration
     /// Period between vibration pulses while the alarm is firing.
     static let vibrationPulseInterval: TimeInterval = 1.5
+
+    // MARK: Screen
+    /// Time over which the dim overlay fades from clear to dark while
+    /// monitoring/snoozing. iOS doesn't expose per-app brightness so this
+    /// is a UI-only effect, but it reads as "the app is dimming for sleep".
+    static let dimFadeDuration: TimeInterval = 30
+    /// Final opacity of the dim overlay (0 = invisible, 1 = pure black).
+    static let dimEndOpacity: Double = 0.85
 }

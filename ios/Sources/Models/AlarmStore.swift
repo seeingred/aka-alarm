@@ -1,6 +1,8 @@
 import Foundation
 import Combine
 import AVFoundation
+import UIKit
+import UserNotifications
 
 enum AlarmPhase: Equatable {
     case idle
@@ -50,6 +52,7 @@ final class AlarmStore: ObservableObject {
     private let player = AlarmPlayer()
 
     private var phaseTimer: Timer?
+    private var appActiveObserver: NSObjectProtocol?
 
     init() {
         let (h, m) = Self.currentWindowDefault()
@@ -65,9 +68,26 @@ final class AlarmStore: ObservableObject {
         mic.onSpike = { [weak self] in
             DispatchQueue.main.async { self?.handleSpike() }
         }
+        mic.onInterruption = { [weak self] began in
+            DispatchQueue.main.async { self?.handleInterruption(began: began) }
+        }
         motion.onSnoozeNudge = { [weak self] in
             DispatchQueue.main.async { self?.handleNudge() }
         }
+
+        // If the OS suspended us and we just came back to the foreground while an
+        // alarm is armed, kick the mic back to life. Belt-and-braces on top of the
+        // route/interruption observers inside MicMonitor.
+        appActiveObserver = NotificationCenter.default.addObserver(
+            forName: UIApplication.didBecomeActiveNotification,
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.handleAppDidBecomeActive()
+        }
+    }
+
+    deinit {
+        appActiveObserver.map(NotificationCenter.default.removeObserver)
     }
 
     // MARK: User actions
@@ -79,9 +99,13 @@ final class AlarmStore: ObservableObject {
                 self.micPermissionDenied = true
                 return
             }
+            // Best-effort notification permission for the "audio interrupted" warning.
+            // Failure to grant doesn't break anything — we just skip posting later.
+            Task { _ = try? await UNUserNotificationCenter.current()
+                .requestAuthorization(options: [.alert, .sound]) }
+
             let (start, end) = self.computeWindow(now: now)
             if now >= start {
-                // "Now" is already inside the window — start listening for a stir immediately.
                 self.transition(to: .inWindow(start: start, end: end))
             } else {
                 self.transition(to: .monitoring(start: start, end: end))
@@ -125,6 +149,29 @@ final class AlarmStore: ObservableObject {
         transition(to: .snoozing(until: .now.addingTimeInterval(duration), windowEnd: windowEnd))
     }
 
+    private func handleInterruption(began: Bool) {
+        // Only meaningful while we're actively listening — once the alarm is firing
+        // or snoozing, the mic isn't running anyway.
+        guard phase.kind == .monitoring || phase.kind == .inWindow else { return }
+        if began {
+            postInterruptionNotification()
+        } else {
+            cancelInterruptionNotification()
+        }
+    }
+
+    private func handleAppDidBecomeActive() {
+        switch phase {
+        case .monitoring, .inWindow:
+            if !mic.isRunning {
+                do { try mic.start() } catch { print("Mic restart on foreground failed: \(error)") }
+                mic.setSpikeDetectionEnabled(phase.kind == .inWindow)
+            }
+        default:
+            break
+        }
+    }
+
     // MARK: State machine
 
     private func transition(to next: AlarmPhase) {
@@ -143,6 +190,7 @@ final class AlarmStore: ObservableObject {
                 .setActive(false, options: [.notifyOthersOnDeactivation])
             micLevelDB = Tuning.dbFloor
             baselineDB = Tuning.dbFloor
+            cancelInterruptionNotification()
 
         case .monitoring(let start, _):
             if !mic.isRunning {
@@ -186,6 +234,10 @@ final class AlarmStore: ObservableObject {
         }
 
         phase = next
+
+        // Keep the screen on whenever an alarm is armed. Without this iOS auto-locks
+        // and (in some scenarios) suspends us harder, especially on a non-charging device.
+        UIApplication.shared.isIdleTimerDisabled = (next.kind != .idle)
     }
 
     private func scheduleTransition(at date: Date, _ action: @escaping () -> Void) {
@@ -194,6 +246,30 @@ final class AlarmStore: ObservableObject {
             DispatchQueue.main.async(execute: action)
         }
     }
+
+    // MARK: Local notifications
+
+    private func postInterruptionNotification() {
+        let content = UNMutableNotificationContent()
+        content.title = "aka Alarm was paused"
+        content.body = "Another app took over the microphone. Tap to reopen and resume listening."
+        content.sound = .default
+        let request = UNNotificationRequest(
+            identifier: Self.interruptionNotificationID,
+            content: content,
+            trigger: nil // deliver immediately
+        )
+        UNUserNotificationCenter.current().add(request, withCompletionHandler: nil)
+    }
+
+    private func cancelInterruptionNotification() {
+        UNUserNotificationCenter.current()
+            .removeDeliveredNotifications(withIdentifiers: [Self.interruptionNotificationID])
+        UNUserNotificationCenter.current()
+            .removePendingNotificationRequests(withIdentifiers: [Self.interruptionNotificationID])
+    }
+
+    private static let interruptionNotificationID = "akaalarm.interruption"
 
     // MARK: Helpers
 

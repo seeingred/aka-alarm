@@ -114,37 +114,49 @@ private struct SetAlarmView: View {
 private struct MonitoringView: View {
     @EnvironmentObject private var store: AlarmStore
     @State private var dragOffset: CGFloat = 0
+    @State private var dimOpacity: Double = 0
 
     var body: some View {
-        VStack(spacing: 24) {
-            Spacer(minLength: 0)
+        ZStack {
+            VStack(spacing: 24) {
+                Spacer(minLength: 0)
 
-            TimelineView(.periodic(from: .now, by: 1)) { context in
-                Text(context.date, format: .dateTime.hour().minute().second())
-                    .font(.system(size: 64, weight: .thin, design: .rounded))
-                    .monospacedDigit()
-            }
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    Text(context.date, format: .dateTime.hour().minute().second())
+                        .font(.system(size: 64, weight: .thin, design: .rounded))
+                        .monospacedDigit()
+                }
 
-            if let w = store.phase.window {
-                Text("\(w.start, format: .dateTime.hour().minute()) – \(w.end, format: .dateTime.hour().minute())")
-                    .font(.title3)
+                if let w = store.phase.window {
+                    Text("\(w.start, format: .dateTime.hour().minute()) – \(w.end, format: .dateTime.hour().minute())")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                }
+
+                MicLevelView(currentDB: store.micLevelDB, baselineDB: store.baselineDB)
+                    .frame(height: 80)
+                    .padding(.horizontal, 32)
+
+                Text(store.phase.kind == .inWindow ? "Listening for stirring…" : "Learning room baseline…")
+                    .font(.callout)
                     .foregroundStyle(.secondary)
+
+                Spacer(minLength: 0)
+
+                SlideUpHint(label: "Slide up to cancel")
             }
+            .padding()
+            .offset(y: dragOffset)
 
-            MicLevelView(currentDB: store.micLevelDB, baselineDB: store.baselineDB)
-                .frame(height: 80)
-                .padding(.horizontal, 32)
-
-            Text(store.phase.kind == .inWindow ? "Listening for stirring…" : "Learning room baseline…")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-
-            Spacer(minLength: 0)
-
-            SlideUpHint(label: "Slide up to cancel")
+            // Dim overlay — UI-only "this app is dimming for sleep" effect since
+            // iOS doesn't expose per-app screen brightness. Hit-test is disabled
+            // so the slide-up DragGesture below still receives input.
+            Color.black
+                .opacity(dimOpacity)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
         }
-        .padding()
-        .offset(y: dragOffset)
+        .contentShape(Rectangle())
         .gesture(
             DragGesture()
                 .onChanged { v in
@@ -159,6 +171,24 @@ private struct MonitoringView: View {
                     withAnimation(.spring) { dragOffset = 0 }
                 }
         )
+        .simultaneousGesture(TapGesture().onEnded { resetDim() })
+        .onAppear { startDimFade() }
+    }
+
+    private func startDimFade() {
+        dimOpacity = 0
+        withAnimation(.linear(duration: Tuning.dimFadeDuration)) {
+            dimOpacity = Tuning.dimEndOpacity
+        }
+    }
+
+    private func resetDim() {
+        withAnimation(.easeOut(duration: 0.25)) { dimOpacity = 0 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            withAnimation(.linear(duration: Tuning.dimFadeDuration)) {
+                dimOpacity = Tuning.dimEndOpacity
+            }
+        }
     }
 }
 

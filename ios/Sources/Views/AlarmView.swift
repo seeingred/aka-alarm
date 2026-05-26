@@ -3,27 +3,39 @@ import SwiftUI
 struct AlarmView: View {
     @EnvironmentObject private var store: AlarmStore
     @State private var dragOffset: CGFloat = 0
+    @State private var dimOpacity: Double = 0
 
     var body: some View {
-        VStack(spacing: 24) {
-            Spacer(minLength: 0)
+        ZStack {
+            VStack(spacing: 24) {
+                Spacer(minLength: 0)
 
-            TimelineView(.periodic(from: .now, by: 1)) { context in
-                Text(context.date, format: .dateTime.hour().minute().second())
-                    .font(.system(size: 72, weight: .thin, design: .rounded))
-                    .monospacedDigit()
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    Text(context.date, format: .dateTime.hour().minute().second())
+                        .font(.system(size: 72, weight: .thin, design: .rounded))
+                        .monospacedDigit()
+                }
+
+                content
+
+                Spacer(minLength: 0)
+
+                SlideUpHint(label: "Slide up to dismiss")
             }
+            .padding()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(.systemBackground))
+            .offset(y: dragOffset)
 
-            content
-
-            Spacer(minLength: 0)
-
-            SlideUpHint(label: "Slide up to dismiss")
+            // Dim overlay only while snoozing — the alarming phase should be bright.
+            // Dim resets to 0 (instantly via onChange) whenever we leave the snoozing
+            // phase, so a fresh re-snooze starts the fade from zero again.
+            Color.black
+                .opacity(dimOpacity)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
         }
-        .padding()
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemBackground))
-        .offset(y: dragOffset)
+        .contentShape(Rectangle())
         .gesture(
             DragGesture()
                 .onChanged { v in
@@ -38,6 +50,33 @@ struct AlarmView: View {
                     withAnimation(.spring) { dragOffset = 0 }
                 }
         )
+        .simultaneousGesture(TapGesture().onEnded { resetDim() })
+        .onChange(of: store.phase.kind, initial: true) { _, kind in
+            updateDim(for: kind)
+        }
+    }
+
+    private func updateDim(for kind: AlarmPhase.Kind) {
+        switch kind {
+        case .snoozing:
+            dimOpacity = 0
+            withAnimation(.linear(duration: Tuning.dimFadeDuration)) {
+                dimOpacity = Tuning.dimEndOpacity
+            }
+        default:
+            withAnimation(.easeOut(duration: 0.25)) { dimOpacity = 0 }
+        }
+    }
+
+    private func resetDim() {
+        guard store.phase.kind == .snoozing else { return }
+        withAnimation(.easeOut(duration: 0.25)) { dimOpacity = 0 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            guard store.phase.kind == .snoozing else { return }
+            withAnimation(.linear(duration: Tuning.dimFadeDuration)) {
+                dimOpacity = Tuning.dimEndOpacity
+            }
+        }
     }
 
     @ViewBuilder
