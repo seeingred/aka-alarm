@@ -1,6 +1,5 @@
 Categories:
   - Time
-
 License: MIT
 AuthorName: Aleksandr Alekseev
 AuthorEmail: akaseeingred@gmail.com
@@ -11,7 +10,6 @@ Changelog: https://github.com/seeingred/aka-alarm/blob/main/CHANGELOG.md
 
 AutoName: aka Alarm
 Summary: Wakes you within a 30-min window when you start stirring
-
 Description: |
   aka Alarm wakes you at the right moment within a 30-minute window
   you choose, instead of jolting you out of bed at a fixed time.
@@ -45,7 +43,7 @@ Repo: https://github.com/seeingred/aka-alarm
 Builds:
   - versionName: 1.1.0
     versionCode: 3
-    commit: 9fdee607633c0a3485d3a9e1bf389b672a5c72ee
+    commit: aa7de31c1cb7cb34e085be1ce9cf52fbbddc15bb
     subdir: android/app
     gradle:
       - yes
