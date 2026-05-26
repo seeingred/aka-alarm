@@ -1,0 +1,66 @@
+# F-Droid metadata for aka Alarm.
+# Submitted to https://gitlab.com/fdroid/fdroiddata as a merge request
+# adding this file at metadata/com.aka.alarm.yml.
+#
+# F-Droid documentation: https://f-droid.org/en/docs/Build_Metadata_Reference/
+
+Categories:
+  - Time
+
+License: MIT
+AuthorName: Aleksandr Alekseev
+AuthorEmail: akaseeingred@gmail.com
+WebSite: https://seeingred.github.io/aka-alarm/
+SourceCode: https://github.com/seeingred/aka-alarm
+IssueTracker: https://github.com/seeingred/aka-alarm/issues
+Changelog: https://github.com/seeingred/aka-alarm/blob/main/CHANGELOG.md
+
+AutoName: aka Alarm
+Summary: Wakes you within a 30-minute window by listening for the moment you start stirring
+
+Description: |
+    aka Alarm wakes you at the right moment within a 30-minute window
+    you choose, instead of jolting you out of bed at a fixed time.
+
+    How it works: while an alarm is armed the app uses the microphone
+    to measure the ambient sound level of your room. It maintains a
+    rolling 5-minute baseline of "how quiet it really is" and watches
+    for the level to rise above that baseline by a configurable
+    threshold. When that happens — you turn over, sigh, shift the
+    duvet — the alarm fires. If nothing happens, the alarm fires at
+    the end of the window so you never oversleep.
+
+    Privacy: the microphone is active only while an alarm is set, and
+    audio is processed in memory then immediately discarded. No audio
+    buffer is ever written to disk, persisted, or transmitted off
+    your device. There is no network code in this app at all — no
+    analytics, no crash reporting, no third-party SDKs.
+
+    Features:
+    * Wake-up window with smart spike detection
+    * 60-second gradual volume fade-in for the alarm tone
+    * Motion-driven snooze (lightly move the phone) with random
+      duration clamped to the remaining window
+    * Slide up anywhere to dismiss
+    * Foreground service keeps the alarm reliable overnight
+    * Material 3 UI, dark + light mode
+
+RepoType: git
+Repo: https://github.com/seeingred/aka-alarm
+
+Builds:
+  - versionName: 1.1.0
+    versionCode: 3
+    commit: 9fdee607633c0a3485d3a9e1bf389b672a5c72ee
+    subdir: android/app
+    gradle:
+      - yes
+    rm:
+      - android/local.properties
+      - android/keystore.properties
+    output: ../app/build/outputs/apk/release/app-release-unsigned.apk
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: 1.1.0
+CurrentVersionCode: 3
