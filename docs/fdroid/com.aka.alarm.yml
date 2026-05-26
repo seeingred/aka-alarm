@@ -9,7 +9,6 @@ IssueTracker: https://github.com/seeingred/aka-alarm/issues
 Changelog: https://github.com/seeingred/aka-alarm/blob/main/CHANGELOG.md
 
 AutoName: aka Alarm
-Summary: Wakes you within a 30-min window when you start stirring
 Description: |
   aka Alarm wakes you at the right moment within a 30-minute window
   you choose, instead of jolting you out of bed at a fixed time.

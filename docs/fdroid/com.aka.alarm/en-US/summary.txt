@@ -1,0 +1,1 @@
+Wakes you within a 30-min window when you start stirring
