@@ -9,46 +9,22 @@ IssueTracker: https://github.com/seeingred/aka-alarm/issues
 Changelog: https://github.com/seeingred/aka-alarm/blob/main/CHANGELOG.md
 
 AutoName: aka Alarm
-Description: |
-  aka Alarm wakes you at the right moment within a 30-minute window
-  you choose, instead of jolting you out of bed at a fixed time.
-
-  How it works: while an alarm is armed the app uses the microphone
-  to measure the ambient sound level of your room. It maintains a
-  rolling 5-minute baseline of "how quiet it really is" and watches
-  for the level to rise above that baseline by a configurable
-  threshold. When that happens — you turn over, sigh, shift the
-  duvet — the alarm fires. If nothing happens, the alarm fires at
-  the end of the window so you never oversleep.
-
-  Privacy: the microphone is active only while an alarm is set, and
-  audio is processed in memory then immediately discarded. No audio
-  buffer is ever written to disk, persisted, or transmitted off
-  your device. There is no network code in this app at all — no
-  analytics, no crash reporting, no third-party SDKs.
-
-  Features:
-  * Wake-up window with smart spike detection
-  * 60-second gradual volume fade-in for the alarm tone
-  * Motion-driven snooze (lightly move the phone) with random
-    duration clamped to the remaining window
-  * Slide up anywhere to dismiss
-  * Foreground service keeps the alarm reliable overnight
-  * Material 3 UI, dark + light mode
 
 RepoType: git
 Repo: https://github.com/seeingred/aka-alarm
+Binaries: https://github.com/seeingred/aka-alarm/releases/download/v%v/aka-alarm-v%v.apk
 
 Builds:
-  - versionName: 1.1.0
-    versionCode: 3
-    commit: aa7de31c1cb7cb34e085be1ce9cf52fbbddc15bb
+  - versionName: 1.1.2
+    versionCode: 5
+    commit: b0ae1a84ba3c1dd8a3c95310e3cefe6c0507f961
     subdir: android/app
     gradle:
       - yes
-    output: ../app/build/outputs/apk/release/app-release-unsigned.apk
+
+AllowedAPKSigningKeys: 22ca249c6f8abf3190c9e8aab2108ce4ec6c07366c1b067797b44f4a3c0dd538
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
-CurrentVersion: 1.1.0
-CurrentVersionCode: 3
+CurrentVersion: 1.1.2
+CurrentVersionCode: 5
