@@ -20,8 +20,8 @@ android {
         applicationId = "com.aka.alarm"
         minSdk = 34
         targetSdk = 36
-        versionCode = 4
-        versionName = "1.1.1"
+        versionCode = 5
+        versionName = "1.1.2"
     }
 
     signingConfigs {
@@ -65,6 +65,15 @@ android {
 
     buildFeatures {
         compose = true
+    }
+
+    // AGP injects an encrypted "Dependency metadata" signing block into every
+    // APK/AAB. F-Droid's scanner rejects it because only Google can decrypt
+    // it (so it can't be verified). Disable both to keep our builds fully
+    // transparent. See gitlab.com/fdroid/admin/-/issues/367
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
     }
 
     sourceSets {

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.2 — 2026-05-27
+
+Android-only patch — no user-visible changes.
+
+- Added `dependenciesInfo { includeInApk = false; includeInBundle = false }` to `app/build.gradle.kts`. AGP injects an encrypted "Dependency metadata" signing block by default that only Google can decrypt; F-Droid's APK scanner rejects builds containing it as opaque. Disabling keeps the build fully transparent and unblocks F-Droid inclusion.
+
 ## 1.1.1 — 2026-05-27
 
 Android-only patch — no user-visible changes.
