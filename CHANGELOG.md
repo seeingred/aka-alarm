@@ -1,6 +1,14 @@
 # Changelog
 
-## 1.1.0 — unreleased
+## 1.1.1 — 2026-05-27
+
+Android-only patch — no user-visible changes.
+
+- Removed the `org.gradle.toolchains.foojay-resolver-convention` plugin from `android/settings.gradle.kts`. F-Droid's build scanner flags it as a non-free network dependency (it downloads JDKs from foojay.io). The project pins `JavaVersion.VERSION_17` and doesn't need toolchain auto-resolution; both local dev and F-Droid CI provide JDK 17 directly.
+- Added Fastlane metadata structure at `fastlane/metadata/android/en-US/` (title, short + full description, 512 icon) so F-Droid clients, IzzyOnDroid, and other Fastlane-aware indexers pull the listing copy from the canonical source instead of duplicating it in store metadata.
+- Wired up `.github/workflows/release.yml` so a `vX.Y.Z` tag push automatically builds the signed APK + AAB and creates a GitHub Release. Obtainium users can now auto-update directly from the Releases page.
+
+## 1.1.0 — 2026-05-27
 
 Background-listening reliability + screen behaviour + spike-detection sensitivity.
 iOS-only resilience fixes; sensitivity tuning applies to both iOS and Android.
