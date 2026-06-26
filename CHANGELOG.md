@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.3 — 2026-06-26
+
+Android-only patch — no user-visible changes.
+
+- Lowered `minSdk` from 34 (Android 14) to 31 (Android 12) in `android/app/build.gradle.kts`. Roughly doubles the addressable Android device base. All APIs used by the app are available on API 31; `POST_NOTIFICATIONS` was already runtime-gated, and `FOREGROUND_SERVICE_MICROPHONE` is harmless on devices below API 34 (annotated with `tools:targetApi="34"` in the manifest to silence the lint warning). Notably restores installability on Huawei AppGallery, whose test fleet includes Android 12 EMUI 13 devices.
+- Updated privacy policy (`docs/privacy.html`) to explicitly name the developer (Aleksandr Alekseev) alongside the app name, per Huawei AppGallery review rule 7.1.
+
 ## 1.1.2 — 2026-05-27
 
 Android-only patch — no user-visible changes.
