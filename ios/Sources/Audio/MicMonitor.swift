@@ -3,7 +3,7 @@ import AVFoundation
 
 /// Continuously samples the microphone, maintains a rolling baseline of ambient noise level
 /// (in dBFS), and reports spike events when the current level rises above baseline by
-/// `Tuning.spikeThresholdDB`.
+/// `spikeThresholdDB` (user-tunable via the sensitivity slider).
 ///
 /// Levels are throttled for UI updates; baseline is recomputed once per
 /// `Tuning.baselineCellSeconds`. AVAudioSession is configured with
@@ -51,6 +51,7 @@ final class MicMonitor {
     // Cross-thread state.
     private let lock = NSLock()
     private var _spikeDetectionEnabled = false
+    private var _spikeThresholdDB = Tuning.spikeThresholdDB(sensitivity: Tuning.defaultSensitivity)
     private var _running = false
     /// Time (systemUptime) of the most recent buffer received by the audio tap.
     /// Audio thread writes, main thread reads for the watchdog.
@@ -67,6 +68,12 @@ final class MicMonitor {
     private var watchdogTimer: Timer?
 
     var isRunning: Bool { lockedRead { _running } }
+
+    /// Live-tunable via the sensitivity slider; AlarmStore pushes updates.
+    var spikeThresholdDB: Double {
+        get { lockedRead { _spikeThresholdDB } }
+        set { lockedWrite { _spikeThresholdDB = newValue } }
+    }
 
     private var spikeEnabled: Bool { lockedRead { _spikeDetectionEnabled } }
 
@@ -376,7 +383,7 @@ final class MicMonitor {
                 // loud event can't pull its own threshold up.
                 let prior = baselineRing.dropLast()
                 let priorBaseline = prior.reduce(0, +) / Double(prior.count)
-                if cellPeak > priorBaseline + Tuning.spikeThresholdDB {
+                if cellPeak > priorBaseline + spikeThresholdDB {
                     onSpike?()
                 }
             }

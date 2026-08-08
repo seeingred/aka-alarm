@@ -14,7 +14,7 @@ import kotlin.math.sqrt
 /**
  * Continuously samples the microphone, maintains a rolling 5-minute baseline of
  * ambient noise (dBFS), and reports spike events when the current level exceeds
- * baseline by [Tuning.SPIKE_THRESHOLD_DB]. Callbacks are dispatched on the main
+ * baseline by [spikeThresholdDb]. Callbacks are dispatched on the main
  * thread for easy Compose state updates.
  */
 class MicMonitor {
@@ -23,6 +23,8 @@ class MicMonitor {
     var onSpike: (() -> Unit)? = null
 
     @Volatile var spikeDetectionEnabled: Boolean = false
+    /** Live-tunable via the sensitivity slider; AlarmStore pushes updates. */
+    @Volatile var spikeThresholdDb: Double = Tuning.spikeThresholdDb(Tuning.DEFAULT_SENSITIVITY)
     @Volatile var isRunning: Boolean = false
         private set
 
@@ -122,7 +124,7 @@ class MicMonitor {
                     val priorAvg = baselineRing.asSequence()
                         .take(baselineRing.size - 1)
                         .average()
-                    if (cellPeak > priorAvg + Tuning.SPIKE_THRESHOLD_DB) {
+                    if (cellPeak > priorAvg + spikeThresholdDb) {
                         mainHandler.post { onSpike?.invoke() }
                     }
                 }

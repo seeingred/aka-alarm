@@ -18,11 +18,21 @@ object Tuning {
     val baselineWindow: Duration = 5.minutes
     val baselineCellSeconds: Duration = 1.seconds
     /**
-     * How far above baseline (in dB) the *peak* moment in a cell must exceed for
-     * us to call it a spike. Using peak rather than the cell mean lets brief
+     * The spike threshold (how far above baseline, in dB, the *peak* moment in a
+     * cell must rise to count as a spike) is user-tunable via the sensitivity
+     * slider. Slider 0.0 (very low) maps to [SENSITIVITY_MAX_THRESHOLD_DB],
+     * 1.0 (very high) to [SENSITIVITY_MIN_THRESHOLD_DB]; the default 0.5 lands
+     * on the historical 4.5 dB. Using peak rather than the cell mean lets brief
      * sheet rustles trigger the alarm — they'd otherwise vanish in a 1 s average.
      */
-    const val SPIKE_THRESHOLD_DB: Double = 4.5
+    const val SENSITIVITY_MIN_THRESHOLD_DB: Double = 1.0
+    const val SENSITIVITY_MAX_THRESHOLD_DB: Double = 8.0
+    const val DEFAULT_SENSITIVITY: Float = 0.5f
+
+    fun spikeThresholdDb(sensitivity: Float): Double =
+        SENSITIVITY_MAX_THRESHOLD_DB -
+            sensitivity.coerceIn(0f, 1f) *
+            (SENSITIVITY_MAX_THRESHOLD_DB - SENSITIVITY_MIN_THRESHOLD_DB)
     const val MIN_BASELINE_CELLS: Int = 10
     const val LEVEL_METER_HZ: Double = 30.0
     /** Detection floor: dB values below this clamp to silence. */

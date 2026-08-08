@@ -29,6 +29,7 @@ struct MainView: View {
 
 private struct SetAlarmView: View {
     @EnvironmentObject private var store: AlarmStore
+    @State private var showSettings = false
 
     private let minuteOptions = [0, 15, 30, 45]
 
@@ -96,6 +97,10 @@ private struct SetAlarmView: View {
             .controlSize(.large)
         }
         .padding()
+        .overlay(alignment: .topTrailing) {
+            SettingsGearButton { showSettings = true }
+        }
+        .sheet(isPresented: $showSettings) { SensitivitySheet() }
     }
 
     private var windowLabel: String {
@@ -113,6 +118,7 @@ private struct MonitoringView: View {
     @EnvironmentObject private var store: AlarmStore
     @State private var dragOffset: CGFloat = 0
     @State private var dimOpacity: Double = 0
+    @State private var showSettings = false
 
     var body: some View {
         ZStack {
@@ -131,9 +137,14 @@ private struct MonitoringView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                MicLevelView(currentDB: store.micLevelDB, baselineDB: store.baselineDB)
-                    .frame(height: 80)
-                    .padding(.horizontal, 32)
+                MicLevelView(
+                    currentDB: store.micLevelDB,
+                    baselineDB: store.baselineDB,
+                    thresholdDB: store.baselineDB
+                        + Tuning.spikeThresholdDB(sensitivity: store.sensitivity)
+                )
+                .frame(height: 80)
+                .padding(.horizontal, 32)
 
                 Text(store.phase.kind == .inWindow ? "Listening for stirring…" : "Learning room baseline…")
                     .font(.callout)
@@ -144,6 +155,12 @@ private struct MonitoringView: View {
                 SlideUpHint(label: "Slide up to cancel")
             }
             .padding()
+            // Gear sits *before* the dim overlay in the ZStack so it fades to
+            // dark along with everything else; the overlay's hit-testing is off,
+            // so the button stays tappable (tapping also resets the dim).
+            .overlay(alignment: .topTrailing) {
+                SettingsGearButton { showSettings = true }
+            }
             .offset(y: dragOffset)
 
             // Dim overlay — UI-only "this app is dimming for sleep" effect since
@@ -171,6 +188,7 @@ private struct MonitoringView: View {
         )
         .simultaneousGesture(TapGesture().onEnded { resetDim() })
         .onAppear { startDimFade() }
+        .sheet(isPresented: $showSettings) { SensitivitySheet() }
     }
 
     private func startDimFade() {
@@ -190,11 +208,79 @@ private struct MonitoringView: View {
     }
 }
 
+// MARK: - Settings
+
+struct SettingsGearButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "gearshape")
+                .font(.system(size: 18, weight: .regular))
+                .foregroundStyle(.secondary)
+                .padding(12)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Settings")
+    }
+}
+
+struct SensitivitySheet: View {
+    @EnvironmentObject private var store: AlarmStore
+
+    private var micActive: Bool {
+        store.phase.kind == .monitoring || store.phase.kind == .inWindow
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Sensitivity")
+                .font(.headline)
+            Text(String(
+                format: "How easily sound above the room's baseline triggers the alarm. Trigger point: +%.1f dB over baseline.",
+                Tuning.spikeThresholdDB(sensitivity: store.sensitivity)
+            ))
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+
+            // Live calibration aid: when the mic is running, show the same level
+            // bar as the monitoring screen so the trigger line can be tuned
+            // against real room noise.
+            if micActive {
+                MicLevelView(
+                    currentDB: store.micLevelDB,
+                    baselineDB: store.baselineDB,
+                    thresholdDB: store.baselineDB
+                        + Tuning.spikeThresholdDB(sensitivity: store.sensitivity)
+                )
+                .frame(height: 40)
+                .padding(.vertical, 8)
+            }
+
+            // Auto-saves on every change via AlarmStore.sensitivity's didSet.
+            // Same 15 discrete positions as Android → 0.5 dB per step.
+            Slider(value: $store.sensitivity, in: 0...1, step: 1.0 / 14.0)
+            HStack {
+                Text("Very low")
+                Spacer()
+                Text("Very high")
+            }
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .presentationDetents([.height(300)])
+    }
+}
+
 // MARK: - Mic level
 
 struct MicLevelView: View {
     let currentDB: Double
     let baselineDB: Double
+    var thresholdDB: Double? = nil
 
     var body: some View {
         GeometryReader { geo in
@@ -217,6 +303,16 @@ struct MicLevelView: View {
                     .frame(width: 2, height: geo.size.height + 12)
                     .offset(x: geo.size.width * Self.normalize(baselineDB), y: -6)
                     .animation(.linear(duration: 0.5), value: baselineDB)
+
+                // Trigger marker — where a peak has to reach to fire the alarm.
+                // Hidden until the baseline has climbed above the display floor.
+                if let threshold = thresholdDB, baselineDB > Tuning.displayDbFloor {
+                    Rectangle()
+                        .fill(Color.red)
+                        .frame(width: 2, height: geo.size.height + 12)
+                        .offset(x: geo.size.width * Self.normalize(threshold), y: -6)
+                        .animation(.linear(duration: 0.5), value: threshold)
+                }
             }
         }
     }

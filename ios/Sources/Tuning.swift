@@ -14,11 +14,21 @@ enum Tuning {
     static let baselineWindow: TimeInterval = 5 * 60
     /// How wide each baseline bucket is (we average buffers into one bucket every N seconds).
     static let baselineCellSeconds: TimeInterval = 1.0
-    /// How far above baseline (in dB) the *peak* moment in a cell must exceed for
-    /// us to call it a spike. Using peak (loudest moment in the cell) rather than
+    /// The spike threshold (how far above baseline, in dB, the *peak* moment in a
+    /// cell must rise to count as a spike) is user-tunable via the sensitivity
+    /// slider. Slider 0.0 (very low) maps to `sensitivityMaxThresholdDB`,
+    /// 1.0 (very high) to `sensitivityMinThresholdDB`; the default 0.5 lands on
+    /// the historical 4.5 dB. Using peak (loudest moment in the cell) rather than
     /// the cell mean lets brief sheet rustles and sighs trigger the alarm — they'd
     /// otherwise vanish in a 1-second average.
-    static let spikeThresholdDB: Double = 4.5
+    static let sensitivityMinThresholdDB: Double = 1.0
+    static let sensitivityMaxThresholdDB: Double = 8.0
+    static let defaultSensitivity: Double = 0.5
+
+    static func spikeThresholdDB(sensitivity: Double) -> Double {
+        let s = min(1, max(0, sensitivity))
+        return sensitivityMaxThresholdDB - s * (sensitivityMaxThresholdDB - sensitivityMinThresholdDB)
+    }
     /// Minimum number of baseline cells before we trust spike detection.
     static let minBaselineCells: Int = 10
     /// UI-side level meter refresh rate.

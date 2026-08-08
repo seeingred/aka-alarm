@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -47,6 +48,10 @@ class AlarmStore(private val app: Application) {
     var selectedHour by mutableIntStateOf(7)
     var selectedMinute by mutableIntStateOf(0)
 
+    /** 0.0 = very low, 1.0 = very high. Persisted immediately on change. */
+    var sensitivity by mutableFloatStateOf(Tuning.DEFAULT_SENSITIVITY)
+        private set
+
     var micPermissionDenied by mutableStateOf(false)
 
     private val mic = MicMonitor().apply {
@@ -74,6 +79,17 @@ class AlarmStore(private val app: Application) {
         } else {
             resetSelectedToCurrentWindow()
         }
+        sensitivity = prefs.getFloat(KEY_SENSITIVITY, Tuning.DEFAULT_SENSITIVITY)
+            .coerceIn(0f, 1f)
+        mic.spikeThresholdDb = Tuning.spikeThresholdDb(sensitivity)
+    }
+
+    /** Applies live to the running mic monitor and persists straight away. */
+    fun updateSensitivity(value: Float) {
+        val v = value.coerceIn(0f, 1f)
+        sensitivity = v
+        mic.spikeThresholdDb = Tuning.spikeThresholdDb(v)
+        prefs.edit { putFloat(KEY_SENSITIVITY, v) }
     }
 
     // MARK: User actions
@@ -98,6 +114,7 @@ class AlarmStore(private val app: Application) {
     private companion object {
         const val KEY_HOUR = "selectedHour"
         const val KEY_MINUTE = "selectedMinute"
+        const val KEY_SENSITIVITY = "sensitivity"
     }
 
     fun cancelAlarm() {

@@ -1,5 +1,44 @@
 # Changelog
 
+## 1.1.4 — 2026-08-08
+
+Feature release — adjustable microphone sensitivity (iOS + Android).
+
+**Store "What's new" copy (paste-ready):**
+
+> aka Alarm 1.1.4 — tune how sensitive the wake-up listener is.
+>
+> • New sensitivity setting: tap the gear in the top-right corner and drag the slider from Very low to Very high. Saves automatically and applies instantly, even while an alarm is armed.
+> • The mic level bar now shows a red trigger line, so you can see exactly how loud a sound must be to wake you — and calibrate it live from the settings sheet.
+> • Fixed time labels wrapping and overlapping on devices with large font sizes.
+
+**Adjustable sensitivity (iOS + Android)**
+
+- New settings gear in the top-right corner opens a sensitivity sheet with a
+  15-step slider from Very low to Very high. It maps to the spike threshold:
+  Very low = peak must exceed baseline by 8 dB, Very high = 1 dB, default
+  midpoint = the historical 4.5 dB (0.5 dB per step). Motivated by real-world
+  hardware variance — e.g. a Nothing Phone on a bedside cabinet whose mic
+  never registered stirring at the fixed 4.5 dB threshold.
+- The value saves automatically on every change (SharedPreferences /
+  UserDefaults), persists across sessions, and applies live to a running
+  monitor — no restart needed.
+- The mic level bar now also shows a red trigger marker at
+  baseline + threshold (hidden until the baseline rises above the display
+  floor), and the sensitivity sheet embeds the same live bar while
+  monitoring so the trigger point can be calibrated against real room noise.
+
+**Fixes**
+
+- Android: time labels (wake-window range on the set-alarm screen, clock on
+  the monitoring screen) no longer wrap and overlap under large system font
+  scales — new `AutoShrinkText` shrinks the text to fit one line, mirroring
+  the `minimumScaleFactor` treatment the iOS side already had.
+- Android: the sensitivity slider uses 15 discrete steps rather than a
+  continuous track; a continuous Material 3 `Slider` pixel-snaps its value and
+  fires a spurious `onValueChange` on first composition, silently overwriting
+  the stored default.
+
 ## 1.1.3 — 2026-06-26
 
 Android-only patch — no user-visible changes.

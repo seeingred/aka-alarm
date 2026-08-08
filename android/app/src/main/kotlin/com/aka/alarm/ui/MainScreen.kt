@@ -14,11 +14,19 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -32,8 +40,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aka.alarm.Tuning
@@ -45,13 +56,92 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(store: AlarmStore, onStart: () -> Unit) {
-    when (store.phase.kind) {
-        AlarmPhase.Kind.IDLE -> SetAlarmView(store, onStart)
-        AlarmPhase.Kind.MONITORING,
-        AlarmPhase.Kind.IN_WINDOW -> MonitoringView(store)
-        else -> Box(Modifier.fillMaxSize())
+    var showSettings by remember { mutableStateOf(false) }
+
+    Box(Modifier.fillMaxSize()) {
+        when (store.phase.kind) {
+            AlarmPhase.Kind.IDLE -> SetAlarmView(store, onStart)
+            AlarmPhase.Kind.MONITORING,
+            AlarmPhase.Kind.IN_WINDOW -> MonitoringView(store)
+            else -> Box(Modifier.fillMaxSize())
+        }
+
+        IconButton(
+            onClick = { showSettings = true },
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(8.dp)
+        ) {
+            Icon(
+                Icons.Outlined.Settings,
+                contentDescription = "Settings",
+                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+            )
+        }
+
+        if (showSettings) {
+            ModalBottomSheet(onDismissRequest = { showSettings = false }) {
+                SensitivitySheet(store)
+            }
+        }
+    }
+}
+
+// MARK: - Sensitivity settings
+
+@Composable
+private fun SensitivitySheet(store: AlarmStore) {
+    val micActive = store.phase.kind == AlarmPhase.Kind.MONITORING ||
+        store.phase.kind == AlarmPhase.Kind.IN_WINDOW
+
+    Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 40.dp)) {
+        Text("Sensitivity", style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "How easily sound above the room's baseline triggers the alarm. " +
+                "Trigger point: +%.1f dB over baseline.".format(
+                    Tuning.spikeThresholdDb(store.sensitivity)
+                ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+        )
+
+        if (micActive) {
+            Spacer(Modifier.height(16.dp))
+            MicLevelBar(
+                currentDb = store.micLevelDb,
+                baselineDb = store.baselineDb,
+                thresholdDb = store.baselineDb + Tuning.spikeThresholdDb(store.sensitivity),
+                modifier = Modifier.fillMaxWidth().height(40.dp)
+            )
+        }
+
+        Spacer(Modifier.height(8.dp))
+        // 15 discrete positions → 0.5 dB per step across the 1–8 dB threshold
+        // range. Discrete steps keep persisted values exact (a continuous M3
+        // Slider pixel-snaps its value and fires a spurious onValueChange on
+        // first composition, silently overwriting the stored default).
+        Slider(
+            value = store.sensitivity,
+            onValueChange = { store.updateSensitivity(it) },
+            steps = 13,
+        )
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(
+                "Very low",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+            )
+            Text(
+                "Very high",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+            )
+        }
     }
 }
 
@@ -100,7 +190,7 @@ private fun SetAlarmView(store: AlarmStore, onStart: () -> Unit) {
         }
         Spacer(Modifier.height(24.dp))
 
-        Text(
+        AutoShrinkText(
             text = formatWindowLabel(store.selectedHour, store.selectedMinute),
             fontSize = 56.sp,
             fontWeight = FontWeight.Thin,
@@ -124,6 +214,35 @@ private fun SetAlarmView(store: AlarmStore, onStart: () -> Unit) {
             Text("Start", fontSize = 18.sp)
         }
     }
+}
+
+/**
+ * Single-line text that shrinks itself until it fits the available width —
+ * Android counterpart of the iOS `minimumScaleFactor` treatment. Needed
+ * because large system font scales make the fixed-size time labels wrap and
+ * overlap. The scale only ever decreases (and survives per-second clock text
+ * changes) so it settles after a few frames instead of flickering.
+ */
+@Composable
+private fun AutoShrinkText(
+    text: String,
+    fontSize: TextUnit,
+    fontWeight: FontWeight,
+    color: Color,
+    modifier: Modifier = Modifier,
+) {
+    var scale by remember { mutableFloatStateOf(1f) }
+    Text(
+        text = text,
+        fontSize = fontSize * scale,
+        fontWeight = fontWeight,
+        color = color,
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Clip,
+        onTextLayout = { if (it.didOverflowWidth) scale *= 0.92f },
+        modifier = modifier,
+    )
 }
 
 private fun formatWindowLabel(hour: Int, minute: Int): String {
@@ -173,8 +292,8 @@ private fun MonitoringView(store: AlarmStore) {
         Spacer(Modifier.weight(1f))
 
         val tFmt = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
-        Text(
-            tFmt.format(Date(nowMillis)),
+        AutoShrinkText(
+            text = tFmt.format(Date(nowMillis)),
             fontSize = 64.sp,
             fontWeight = FontWeight.Thin,
             color = MaterialTheme.colorScheme.onSurface,
@@ -195,6 +314,7 @@ private fun MonitoringView(store: AlarmStore) {
         MicLevelBar(
             currentDb = store.micLevelDb,
             baselineDb = store.baselineDb,
+            thresholdDb = store.baselineDb + Tuning.spikeThresholdDb(store.sensitivity),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 32.dp)
@@ -222,6 +342,7 @@ private fun MicLevelBar(
     currentDb: Double,
     baselineDb: Double,
     modifier: Modifier = Modifier,
+    thresholdDb: Double? = null,
 ) {
     BoxWithConstraints(modifier = modifier) {
         val maxWidthPx = with(LocalDensity.current) { maxWidth.toPx() }
@@ -256,6 +377,18 @@ private fun MicLevelBar(
                 .offset { IntOffset((maxWidthPx * baselineFrac).roundToInt(), 0) }
                 .background(Color(0xFFFFA500))
         )
+        // Trigger marker — where a peak has to reach to fire the alarm. Hidden
+        // until the baseline has climbed above the display floor.
+        if (thresholdDb != null && baselineDb > Tuning.DISPLAY_DB_FLOOR) {
+            val thresholdFrac = normalize(thresholdDb).toFloat()
+            Box(
+                modifier = Modifier
+                    .width(2.dp)
+                    .fillMaxHeight()
+                    .offset { IntOffset((maxWidthPx * thresholdFrac).roundToInt(), 0) }
+                    .background(Color(0xFFFF5252))
+            )
+        }
     }
 }
 

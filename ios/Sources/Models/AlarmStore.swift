@@ -45,6 +45,14 @@ final class AlarmStore: ObservableObject {
 
     @Published var selectedHour: Int
     @Published var selectedMinute: Int
+    /// 0.0 = very low, 1.0 = very high. Persisted immediately on change and
+    /// pushed live to the running mic monitor.
+    @Published var sensitivity: Double {
+        didSet {
+            mic.spikeThresholdDB = Tuning.spikeThresholdDB(sensitivity: sensitivity)
+            UserDefaults.standard.set(sensitivity, forKey: Self.kSensitivity)
+        }
+    }
     @Published var micPermissionDenied: Bool = false
 
     private let mic = MicMonitor()
@@ -58,6 +66,12 @@ final class AlarmStore: ObservableObject {
         let (h, m) = Self.loadPersistedSelection() ?? Self.currentWindowDefault()
         self.selectedHour = h
         self.selectedMinute = m
+
+        let s = UserDefaults.standard.object(forKey: Self.kSensitivity) as? Double
+            ?? Tuning.defaultSensitivity
+        self.sensitivity = min(1, max(0, s))
+        // didSet doesn't fire during init — push the loaded value explicitly.
+        mic.spikeThresholdDB = Tuning.spikeThresholdDB(sensitivity: self.sensitivity)
 
         mic.onLevelUpdate = { [weak self] db in
             DispatchQueue.main.async { self?.micLevelDB = db }
@@ -118,6 +132,7 @@ final class AlarmStore: ObservableObject {
 
     private static let kSelectedHour = "akaalarm.selectedHour"
     private static let kSelectedMinute = "akaalarm.selectedMinute"
+    private static let kSensitivity = "akaalarm.sensitivity"
 
     private func persistSelection() {
         UserDefaults.standard.set(selectedHour, forKey: Self.kSelectedHour)
