@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aka.alarm.Tuning
 import com.aka.alarm.model.AlarmPhase
+import com.aka.alarm.model.AlarmSchedule
 import com.aka.alarm.model.AlarmStore
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
@@ -64,6 +65,7 @@ fun MainScreen(store: AlarmStore, onStart: () -> Unit) {
     Box(Modifier.fillMaxSize()) {
         when (store.phase.kind) {
             AlarmPhase.Kind.IDLE -> SetAlarmView(store, onStart)
+            AlarmPhase.Kind.ARMED,
             AlarmPhase.Kind.MONITORING,
             AlarmPhase.Kind.IN_WINDOW -> MonitoringView(store)
             else -> Box(Modifier.fillMaxSize())
@@ -300,8 +302,8 @@ private fun MonitoringView(store: AlarmStore) {
         )
         Spacer(Modifier.height(8.dp))
 
+        val wFmt = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
         store.phase.window?.let { (start, end) ->
-            val wFmt = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
             Text(
                 "${wFmt.format(Date(start))} – ${wFmt.format(Date(end))}",
                 style = MaterialTheme.typography.titleMedium,
@@ -311,21 +313,30 @@ private fun MonitoringView(store: AlarmStore) {
 
         Spacer(Modifier.height(24.dp))
 
-        MicLevelBar(
-            currentDb = store.micLevelDb,
-            baselineDb = store.baselineDb,
-            thresholdDb = store.baselineDb + Tuning.spikeThresholdDb(store.sensitivity),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 32.dp)
-                .height(80.dp)
-        )
+        if (store.phase.kind != AlarmPhase.Kind.ARMED) {
+            MicLevelBar(
+                currentDb = store.micLevelDb,
+                baselineDb = store.baselineDb,
+                thresholdDb = store.baselineDb + Tuning.spikeThresholdDb(store.sensitivity),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 32.dp)
+                    .height(80.dp)
+            )
+        }
 
         Spacer(Modifier.height(16.dp))
+        val statusText = when (store.phase.kind) {
+            AlarmPhase.Kind.ARMED -> store.phase.window?.first?.let { start ->
+                "Alarm armed — mic off until ${
+                    wFmt.format(Date(AlarmSchedule.baselineStartMillis(start)))
+                }"
+            } ?: "Alarm armed — mic off"
+            AlarmPhase.Kind.IN_WINDOW -> "Listening for stirring…"
+            else -> "Learning room baseline…"
+        }
         Text(
-            text = if (store.phase.kind == AlarmPhase.Kind.IN_WINDOW)
-                "Listening for stirring…"
-            else "Learning room baseline…",
+            text = statusText,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
             style = MaterialTheme.typography.bodyMedium,
         )

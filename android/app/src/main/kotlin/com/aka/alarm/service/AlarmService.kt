@@ -14,16 +14,18 @@ import com.aka.alarm.AlarmApp
 import com.aka.alarm.MainActivity
 import com.aka.alarm.R
 import com.aka.alarm.model.AlarmPhase
+import com.aka.alarm.model.AlarmSchedule
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Locale
 
 /**
- * Foreground service that keeps the process (and microphone) alive while an
- * alarm is armed. Android does not allow continuous mic access from a backgrounded
- * regular app — a foreground service with `microphone` type is the supported
- * pattern. The service itself does no work; [AlarmStore] handles all logic.
+ * Foreground service that keeps the process alive while an alarm is armed.
+ * Android does not allow continuous mic access from a backgrounded regular app —
+ * a foreground service with `microphone` type is the supported pattern. The
+ * service itself does no work; [AlarmStore] handles all logic and defers mic
+ * analysis until [com.aka.alarm.Tuning.baselineWindow] before the wake window.
  * The service just owns the persistent notification and is started/stopped by
  * the store on phase transitions.
  */
@@ -81,10 +83,13 @@ class AlarmService : LifecycleService() {
         val fmt = SimpleDateFormat("HH:mm", Locale.getDefault())
         return when (val p = this) {
             AlarmPhase.Idle -> "aka Alarm" to "Idle"
-            is AlarmPhase.Monitoring -> "aka Alarm is listening…" to
-                "Wake window: ${fmt.format(p.start)} – ${fmt.format(p.end)}"
-            is AlarmPhase.InWindow -> "aka Alarm is listening…" to
-                "Wake window active: ${fmt.format(p.start)} – ${fmt.format(p.end)}"
+            is AlarmPhase.Armed -> "aka Alarm is armed" to
+                "Mic off until ${fmt.format(AlarmSchedule.baselineStartMillis(p.start))} · " +
+                    "Window ${fmt.format(p.start)} – ${fmt.format(p.end)}"
+            is AlarmPhase.Monitoring -> "Learning room baseline…" to
+                "Collecting baseline · Window ${fmt.format(p.start)} – ${fmt.format(p.end)}"
+            is AlarmPhase.InWindow -> "Listening for stirring…" to
+                "Spike detection on · Window ${fmt.format(p.start)} – ${fmt.format(p.end)}"
             is AlarmPhase.Alarming -> "Wake up" to "Move the phone to snooze"
             is AlarmPhase.Snoozing -> "Snoozing" to
                 "Until ${fmt.format(p.until)}"

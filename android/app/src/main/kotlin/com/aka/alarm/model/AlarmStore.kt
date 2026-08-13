@@ -28,11 +28,12 @@ import kotlin.random.Random
 
 /**
  * Singleton-ish state machine for the alarm. Mirrors the iOS `AlarmStore`:
- *   idle → monitoring → inWindow → alarming ⇄ snoozing → … → idle
+ *   idle → armed → monitoring → inWindow → alarming ⇄ snoozing → … → idle
  *
  * Owns the lifecycle of [MicMonitor], [AlarmPlayer], [MotionMonitor]. Starts and
  * stops [AlarmService] when entering/leaving non-idle phases so the foreground
- * notification + microphone stay alive while the screen is off.
+ * notification keeps the process alive overnight; mic analysis begins only
+ * [Tuning.baselineWindow] before the wake-window start.
  */
 class AlarmStore(private val app: Application) {
 
@@ -96,12 +97,8 @@ class AlarmStore(private val app: Application) {
 
     fun startAlarm(now: Long = System.currentTimeMillis()) {
         persistSelection()
-        val (start, end) = computeWindow(now)
-        if (now >= start) {
-            transition(AlarmPhase.InWindow(start, end))
-        } else {
-            transition(AlarmPhase.Monitoring(start, end))
-        }
+        val (start, end) = AlarmSchedule.computeWakeWindow(now, selectedHour, selectedMinute)
+        transition(AlarmSchedule.initialPhase(now, start, end))
     }
 
     private fun persistSelection() {
@@ -194,6 +191,18 @@ class AlarmStore(private val app: Application) {
                 micLevelDb = Tuning.DB_FLOOR
                 baselineDb = Tuning.DB_FLOOR
             }
+            is AlarmPhase.Armed -> {
+                mic.stop()
+                motion.stop()
+                player.stop()
+                micLevelDb = Tuning.DB_FLOOR
+                baselineDb = Tuning.DB_FLOOR
+                scheduleTransition(AlarmSchedule.baselineStartMillis(next.start)) {
+                    (phase as? AlarmPhase.Armed)?.let {
+                        transition(AlarmPhase.Monitoring(it.start, it.end))
+                    }
+                }
+            }
             is AlarmPhase.Monitoring -> {
                 if (!mic.isRunning) mic.start()
                 mic.spikeDetectionEnabled = false
@@ -234,8 +243,8 @@ class AlarmStore(private val app: Application) {
 
         phase = next
 
-        // Service follows the phase so the persistent notification + mic stay alive
-        // through screen-off / app-backgrounded.
+        // Service follows the phase so the persistent notification keeps the process
+        // alive through screen-off / app-backgrounded; mic work is deferred separately.
         if (nextActive && !previouslyActive) {
             ContextCompat.startForegroundService(app, Intent(app, AlarmService::class.java))
         } else if (!nextActive && previouslyActive) {
@@ -249,24 +258,5 @@ class AlarmStore(private val app: Application) {
             delay(delayMs)
             action()
         }
-    }
-
-    private fun computeWindow(now: Long): Pair<Long, Long> {
-        val cal = Calendar.getInstance().apply {
-            timeInMillis = now
-            set(Calendar.HOUR_OF_DAY, selectedHour)
-            set(Calendar.MINUTE, selectedMinute)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }
-        var start = cal.timeInMillis
-        var end = start + Tuning.wakeWindowDuration.inWholeMilliseconds
-        // Only roll forward a day if the *entire* window has already passed.
-        if (end <= now) {
-            cal.add(Calendar.DAY_OF_YEAR, 1)
-            start = cal.timeInMillis
-            end = start + Tuning.wakeWindowDuration.inWholeMilliseconds
-        }
-        return start to end
     }
 }
