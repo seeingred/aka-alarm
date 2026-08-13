@@ -15,6 +15,11 @@
         tools:targetApi="34" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Exact baseline wakeup while Armed; alarm-clock apps get USE_EXACT_ALARM on API 33+. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- API 31-32: same capability before USE_EXACT_ALARM existed. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        android:maxSdkVersion="32" />
 
     <uses-feature
         android:name="android.hardware.microphone"
@@ -47,5 +52,13 @@
             android:name=".service.AlarmService"
             android:exported="false"
             android:foregroundServiceType="microphone" />
+
+        <receiver
+            android:name=".baseline.BaselineStartReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.aka.alarm.action.BASELINE_START" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

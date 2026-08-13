@@ -13,6 +13,8 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import com.aka.alarm.Tuning
+import com.aka.alarm.baseline.BaselineStartAlarm
+import com.aka.alarm.baseline.BaselineStartAlarmScheduler
 import com.aka.alarm.audio.AlarmPlayer
 import com.aka.alarm.audio.MicMonitor
 import com.aka.alarm.motion.MotionMonitor
@@ -67,6 +69,7 @@ class AlarmStore(private val app: Application) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var phaseJob: Job? = null
+    private val baselineAlarm = BaselineStartAlarmScheduler(app)
 
     private val prefs: SharedPreferences =
         app.getSharedPreferences("akaalarm", Context.MODE_PRIVATE)
@@ -116,6 +119,24 @@ class AlarmStore(private val app: Application) {
 
     fun cancelAlarm() {
         transition(AlarmPhase.Idle)
+    }
+
+    /** Called by [com.aka.alarm.baseline.BaselineStartReceiver] after an exact baseline wakeup. */
+    internal fun onBaselineStartAlarmFired(
+        windowStartMillis: Long,
+        windowEndMillis: Long,
+        baselineAtMillis: Long,
+    ) {
+        if (!BaselineStartAlarm.shouldTransitionToMonitoring(
+                phase,
+                windowStartMillis,
+                windowEndMillis,
+                baselineAtMillis,
+            )
+        ) {
+            return
+        }
+        transition(AlarmPhase.Monitoring(windowStartMillis, windowEndMillis))
     }
 
     // -----------------------------------------------------------------------
@@ -179,6 +200,8 @@ class AlarmStore(private val app: Application) {
     private fun transition(next: AlarmPhase) {
         phaseJob?.cancel()
         phaseJob = null
+        // Drop any pending baseline exact alarm; re-scheduled below if still Armed.
+        baselineAlarm.cancel()
 
         val previouslyActive = phase !is AlarmPhase.Idle
         val nextActive = next !is AlarmPhase.Idle
@@ -197,11 +220,8 @@ class AlarmStore(private val app: Application) {
                 player.stop()
                 micLevelDb = Tuning.DB_FLOOR
                 baselineDb = Tuning.DB_FLOOR
-                scheduleTransition(AlarmSchedule.baselineStartMillis(next.start)) {
-                    (phase as? AlarmPhase.Armed)?.let {
-                        transition(AlarmPhase.Monitoring(it.start, it.end))
-                    }
-                }
+                // Exact alarm survives Doze; in-process delay does not (see BaselineStartAlarm).
+                baselineAlarm.schedule(BaselineStartAlarm.requestFrom(next))
             }
             is AlarmPhase.Monitoring -> {
                 if (!mic.isRunning) mic.start()
