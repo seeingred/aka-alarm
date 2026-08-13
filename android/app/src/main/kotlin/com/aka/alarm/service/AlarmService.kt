@@ -40,8 +40,12 @@ class AlarmService : LifecycleService() {
             snapshotFlow { store.phase }
                 .distinctUntilChanged()
                 .collect { phase ->
-                    val nm = getSystemService(NotificationManager::class.java)
-                    nm.notify(NOTIFICATION_ID, buildNotification(phase))
+                    if (AlarmServiceLifecycle.shouldUpdateNotification(phase)) {
+                        val nm = getSystemService(NotificationManager::class.java)
+                        nm.notify(NOTIFICATION_ID, buildNotification(phase))
+                    } else {
+                        stopSelf()
+                    }
                 }
         }
     }
@@ -49,11 +53,19 @@ class AlarmService : LifecycleService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         val store = (application as AlarmApp).alarmStore
-        startForeground(
-            NOTIFICATION_ID,
-            buildNotification(store.phase),
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-        )
+        when (AlarmServiceLifecycle.startCommandAction(store.phase)) {
+            ServiceStartCommandAction.StopImmediately -> {
+                stopSelf()
+                return START_NOT_STICKY
+            }
+            ServiceStartCommandAction.PromoteToForeground -> {
+                startForeground(
+                    NOTIFICATION_ID,
+                    buildNotification(store.phase),
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                )
+            }
+        }
         return START_NOT_STICKY
     }
 

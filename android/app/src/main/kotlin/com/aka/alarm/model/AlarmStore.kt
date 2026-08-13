@@ -19,6 +19,7 @@ import com.aka.alarm.audio.AlarmPlayer
 import com.aka.alarm.audio.MicMonitor
 import com.aka.alarm.motion.MotionMonitor
 import com.aka.alarm.service.AlarmService
+import com.aka.alarm.service.AlarmServiceLifecycle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -203,8 +204,9 @@ class AlarmStore(private val app: Application) {
         // Drop any pending baseline exact alarm; re-scheduled below if still Armed.
         baselineAlarm.cancel()
 
-        val previouslyActive = phase !is AlarmPhase.Idle
-        val nextActive = next !is AlarmPhase.Idle
+        val current = phase
+
+        phase = next
 
         when (next) {
             AlarmPhase.Idle -> {
@@ -261,13 +263,13 @@ class AlarmStore(private val app: Application) {
             }
         }
 
-        phase = next
-
         // Service follows the phase so the persistent notification keeps the process
         // alive through screen-off / app-backgrounded; mic work is deferred separately.
-        if (nextActive && !previouslyActive) {
+        // Phase is published above before side effects and before startForegroundService
+        // so onStartCommand never observes the previous Idle state on a new start.
+        if (AlarmServiceLifecycle.shouldStartForegroundService(current, next)) {
             ContextCompat.startForegroundService(app, Intent(app, AlarmService::class.java))
-        } else if (!nextActive && previouslyActive) {
+        } else if (AlarmServiceLifecycle.shouldStopService(current, next)) {
             app.stopService(Intent(app, AlarmService::class.java))
         }
     }
