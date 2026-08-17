@@ -28,6 +28,25 @@ alarm + unit tests).
 - Notification and status line show the plan: "Alarm armed — mic off until
   HH:MM".
 
+**iOS mic reliability (found during on-device testing of the above)**
+
+- **Bluetooth is now output-only.** The audio session used `.allowBluetoothHFP`,
+  so connected AirPods became the session *input* — and their low-bandwidth
+  HFP mic delivers no usable buffers in `.measurement` mode, leaving the app
+  completely deaf until the AirPods happened to switch to another device.
+  Session options now use `.allowBluetoothA2DP` (alarm audio can still play
+  through AirPods when worn) and the input is pinned to the built-in mic via
+  `setPreferredInput` — the phone on the nightstand is the sensor, always.
+  Also removes the ~3 s HFP-negotiation freeze when tapping Start.
+- The mic watchdog now retries the engine rebuild on every tick while stuck
+  (previously one attempt on the edge into stuckness — if that single rebuild
+  landed while the route was still settling, the mic stayed dead), with a
+  liveness grace period after each attempt so the retry loop can't tear the
+  engine down faster than it can deliver its first buffer.
+- Fixed the settings gear drifting toward the screen centre on the armed
+  screen (the hidden level bar let the container shrink to the status text's
+  width; it's now pinned full-width).
+
 ## 1.1.4 — 2026-08-08
 
 Feature release — adjustable microphone sensitivity (iOS + Android).

@@ -96,9 +96,20 @@ final class MicMonitor {
 
     func start() throws {
         if isRunning { return }
+        // A2DP, not HFP: Bluetooth is allowed for OUTPUT only. With HFP allowed,
+        // connected AirPods become the session *input* — their low-bandwidth
+        // Bluetooth mic delivers no usable buffers in .measurement mode, leaving
+        // the app deaf until the AirPods switch to another device. The phone on
+        // the nightstand is the sensor; the built-in mic must always be the input.
         try session.setCategory(.playAndRecord, mode: .measurement,
-                                options: [.defaultToSpeaker, .allowBluetoothHFP])
+                                options: [.defaultToSpeaker, .allowBluetoothA2DP])
         try session.setActive(true, options: [])
+        // Belt-and-braces: pin the input to the built-in mic even if the system
+        // prefers some other attached input (wired headset, USB interface).
+        if let builtIn = session.availableInputs?
+            .first(where: { $0.portType == .builtInMic }) {
+            try? session.setPreferredInput(builtIn)
+        }
 
         try configureEngineForCurrentRoute()
 
@@ -275,16 +286,27 @@ final class MicMonitor {
         guard last > 0 else { return }
         let gap = now - last
 
-        if !wasStuck, gap > Tuning.micWatchdogTimeout {
-            // Newly stuck. Notify and attempt rebuild.
-            lockedWrite { _wasStuck = true }
-            onInterruption?(true)
+        if gap > Tuning.micWatchdogTimeout {
+            // Keep retrying the rebuild while stuck — a single attempt can fail
+            // permanently when the input route is still settling right after
+            // session activation (inputFormat reports sampleRate=0 and no tap
+            // gets installed), which used to leave the mic deaf until an
+            // unrelated route change. CRITICAL: stamp the liveness clock after
+            // every attempt so the next judgment happens a full timeout later —
+            // without the grace period this loop tears the engine down each
+            // second, faster than it can deliver its first buffer, and the mic
+            // never comes up at all.
+            if !wasStuck {
+                lockedWrite { _wasStuck = true }
+                onInterruption?(true)
+            }
             do {
                 try configureEngineForCurrentRoute()
             } catch {
                 print("MicMonitor watchdog: rebuild failed: \(error)")
             }
-        } else if wasStuck, gap < Tuning.micWatchdogTimeout {
+            lockedWrite { _lastBufferTime = ProcessInfo.processInfo.systemUptime }
+        } else if wasStuck {
             // Recovered — buffers resumed (process() updated lastBufferTime).
             lockedWrite { _wasStuck = false }
             onInterruption?(false)

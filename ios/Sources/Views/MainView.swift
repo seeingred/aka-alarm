@@ -157,6 +157,11 @@ private struct MonitoringView: View {
                 SlideUpHint(label: "Slide up to cancel")
             }
             .padding()
+            // Full width regardless of content: in the armed state the level bar
+            // (the only greedy child) is hidden, and without this the VStack
+            // shrinks to the status text's width — dragging the gear overlay's
+            // "top trailing" corner toward the screen centre.
+            .frame(maxWidth: .infinity)
             // Gear sits *before* the dim overlay in the ZStack so it fades to
             // dark along with everything else; the overlay's hit-testing is off,
             // so the button stays tappable (tapping also resets the dim).
