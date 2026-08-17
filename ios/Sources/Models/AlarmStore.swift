@@ -6,15 +6,18 @@ import UserNotifications
 
 enum AlarmPhase: Equatable {
     case idle
+    /// Armed overnight: alarm scheduled, mic analysis not started yet.
+    case armed(start: Date, end: Date)
     case monitoring(start: Date, end: Date)
     case inWindow(start: Date, end: Date)
     case alarming(windowEnd: Date)
     case snoozing(until: Date, windowEnd: Date)
 
-    enum Kind: Equatable { case idle, monitoring, inWindow, alarming, snoozing }
+    enum Kind: Equatable { case idle, armed, monitoring, inWindow, alarming, snoozing }
     var kind: Kind {
         switch self {
         case .idle: return .idle
+        case .armed: return .armed
         case .monitoring: return .monitoring
         case .inWindow: return .inWindow
         case .alarming: return .alarming
@@ -24,14 +27,15 @@ enum AlarmPhase: Equatable {
 
     var window: (start: Date, end: Date)? {
         switch self {
-        case .monitoring(let s, let e), .inWindow(let s, let e): return (s, e)
+        case .armed(let s, let e), .monitoring(let s, let e), .inWindow(let s, let e):
+            return (s, e)
         default: return nil
         }
     }
 
     var windowEnd: Date? {
         switch self {
-        case .monitoring(_, let e), .inWindow(_, let e),
+        case .armed(_, let e), .monitoring(_, let e), .inWindow(_, let e),
              .alarming(let e), .snoozing(_, let e): return e
         case .idle: return nil
         }
@@ -53,6 +57,17 @@ final class AlarmStore: ObservableObject {
             UserDefaults.standard.set(sensitivity, forKey: Self.kSensitivity)
         }
     }
+
+    /// Minutes before the wake window at which the mic starts listening;
+    /// -1 = right after starting. Persisted immediately; if an alarm is
+    /// currently armed or monitoring, the phase is recomputed so the change
+    /// applies tonight, not tomorrow.
+    @Published var activationLeadMinutes: Int {
+        didSet {
+            UserDefaults.standard.set(activationLeadMinutes, forKey: Self.kActivationLead)
+            applyLeadChangeToActivePhase()
+        }
+    }
     @Published var micPermissionDenied: Bool = false
 
     private let mic = MicMonitor()
@@ -70,6 +85,13 @@ final class AlarmStore: ObservableObject {
         let s = UserDefaults.standard.object(forKey: Self.kSensitivity) as? Double
             ?? Tuning.defaultSensitivity
         self.sensitivity = min(1, max(0, s))
+
+        let lead = UserDefaults.standard.object(forKey: Self.kActivationLead) as? Int
+            ?? Tuning.defaultActivationLeadMinutes
+        self.activationLeadMinutes = Tuning.activationLeadOptionsMinutes.contains(lead)
+            ? lead
+            : Tuning.defaultActivationLeadMinutes
+
         // didSet doesn't fire during init — push the loaded value explicitly.
         mic.spikeThresholdDB = Tuning.spikeThresholdDB(sensitivity: self.sensitivity)
 
@@ -120,11 +142,29 @@ final class AlarmStore: ObservableObject {
 
             self.persistSelection()
             let (start, end) = self.computeWindow(now: now)
-            if now >= start {
-                self.transition(to: .inWindow(start: start, end: end))
-            } else {
-                self.transition(to: .monitoring(start: start, end: end))
-            }
+            self.transition(to: self.initialPhase(now: now, start: start, end: end))
+        }
+    }
+
+    /// Mirrors Android's `AlarmSchedule.initialPhase`.
+    private func initialPhase(now: Date, start: Date, end: Date) -> AlarmPhase {
+        if now >= start {
+            return .inWindow(start: start, end: end)
+        }
+        if let baselineStart = Tuning.baselineStart(
+            windowStart: start, leadMinutes: activationLeadMinutes
+        ), now < baselineStart {
+            return .armed(start: start, end: end)
+        }
+        return .monitoring(start: start, end: end)
+    }
+
+    private func applyLeadChangeToActivePhase() {
+        switch phase {
+        case .armed(let s, let e), .monitoring(let s, let e):
+            transition(to: initialPhase(now: .now, start: s, end: e))
+        default:
+            break
         }
     }
 
@@ -133,6 +173,7 @@ final class AlarmStore: ObservableObject {
     private static let kSelectedHour = "akaalarm.selectedHour"
     private static let kSelectedMinute = "akaalarm.selectedMinute"
     private static let kSensitivity = "akaalarm.sensitivity"
+    private static let kActivationLead = "akaalarm.activationLeadMinutes"
 
     private func persistSelection() {
         UserDefaults.standard.set(selectedHour, forKey: Self.kSelectedHour)
@@ -198,6 +239,14 @@ final class AlarmStore: ObservableObject {
 
     private func handleAppDidBecomeActive() {
         switch phase {
+        case .armed(let start, let end):
+            // Self-heal: if the phase timer stalled while suspended and the
+            // activation time has passed, catch up now.
+            if let baselineStart = Tuning.baselineStart(
+                windowStart: start, leadMinutes: activationLeadMinutes
+            ), Date.now >= baselineStart {
+                transition(to: initialPhase(now: .now, start: start, end: end))
+            }
         case .monitoring, .inWindow:
             if !mic.isRunning {
                 do { try mic.start() } catch { print("Mic restart on foreground failed: \(error)") }
@@ -227,6 +276,26 @@ final class AlarmStore: ObservableObject {
             micLevelDB = Tuning.dbFloor
             baselineDB = Tuning.dbFloor
             cancelInterruptionNotification()
+
+        case .armed(let start, _):
+            // Alarm set, mic deliberately off until the activation lead. The
+            // screen stays on (idle timer disabled below) so the phase timer
+            // keeps ticking; handleAppDidBecomeActive catches up if we were
+            // suspended past the activation time.
+            mic.stop()
+            motion.stop()
+            player.stop()
+            micLevelDB = Tuning.dbFloor
+            baselineDB = Tuning.dbFloor
+            if let baselineStart = Tuning.baselineStart(
+                windowStart: start, leadMinutes: activationLeadMinutes
+            ) {
+                scheduleTransition(at: baselineStart) { [weak self] in
+                    guard let self else { return }
+                    guard case .armed(let s, let e) = self.phase else { return }
+                    self.transition(to: .monitoring(start: s, end: e))
+                }
+            }
 
         case .monitoring(let start, _):
             if !mic.isRunning {

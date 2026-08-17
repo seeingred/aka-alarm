@@ -14,6 +14,23 @@ object Tuning {
     val snoozeMinDuration: Duration = 60.seconds
     val snoozeMaxDuration: Duration = 15.minutes
 
+    // Mic activation lead: how long before the wake window the microphone
+    // starts listening. Until then the alarm sits in the Armed phase — process
+    // alive via the foreground service, mic off. -1 = start listening right
+    // after the user taps Start (pre-1.1.5 behaviour, mic runs all night).
+    // The minimum equals [baselineWindow] so the rolling baseline is fully
+    // built by the time spike detection arms at window start.
+    val ACTIVATION_LEAD_OPTIONS_MINUTES = listOf(-1, 480, 240, 120, 60, 30, 15, 5)
+    const val DEFAULT_ACTIVATION_LEAD_MINUTES = 60
+
+    fun activationLeadLabel(minutes: Int): String = when {
+        minutes < 0 -> "right after starting"
+        minutes >= 60 && minutes % 60 == 0 ->
+            if (minutes == 60) "1 hour before the window"
+            else "${minutes / 60} hours before the window"
+        else -> "$minutes minutes before the window"
+    }
+
     // Microphone / spike detection
     val baselineWindow: Duration = 5.minutes
     val baselineCellSeconds: Duration = 1.seconds

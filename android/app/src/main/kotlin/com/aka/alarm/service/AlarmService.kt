@@ -42,7 +42,10 @@ class AlarmService : LifecycleService() {
                 .collect { phase ->
                     if (AlarmServiceLifecycle.shouldUpdateNotification(phase)) {
                         val nm = getSystemService(NotificationManager::class.java)
-                        nm.notify(NOTIFICATION_ID, buildNotification(phase))
+                        nm.notify(
+                            NOTIFICATION_ID,
+                            buildNotification(phase, store.activationLeadMinutes)
+                        )
                     } else {
                         stopSelf()
                     }
@@ -61,7 +64,7 @@ class AlarmService : LifecycleService() {
             ServiceStartCommandAction.PromoteToForeground -> {
                 startForeground(
                     NOTIFICATION_ID,
-                    buildNotification(store.phase),
+                    buildNotification(store.phase, store.activationLeadMinutes),
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
                 )
             }
@@ -69,8 +72,8 @@ class AlarmService : LifecycleService() {
         return START_NOT_STICKY
     }
 
-    private fun buildNotification(phase: AlarmPhase): Notification {
-        val (title, body) = phase.notificationCopy()
+    private fun buildNotification(phase: AlarmPhase, activationLeadMinutes: Int): Notification {
+        val (title, body) = phase.notificationCopy(activationLeadMinutes)
         val openIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
@@ -91,13 +94,14 @@ class AlarmService : LifecycleService() {
             .build()
     }
 
-    private fun AlarmPhase.notificationCopy(): Pair<String, String> {
+    private fun AlarmPhase.notificationCopy(activationLeadMinutes: Int): Pair<String, String> {
         val fmt = SimpleDateFormat("HH:mm", Locale.getDefault())
         return when (val p = this) {
             AlarmPhase.Idle -> "aka Alarm" to "Idle"
             is AlarmPhase.Armed -> "aka Alarm is armed" to
-                "Mic off until ${fmt.format(AlarmSchedule.baselineStartMillis(p.start))} · " +
-                    "Window ${fmt.format(p.start)} – ${fmt.format(p.end)}"
+                "Mic off until ${
+                    fmt.format(AlarmSchedule.baselineStartMillis(p.start, activationLeadMinutes))
+                } · Window ${fmt.format(p.start)} – ${fmt.format(p.end)}"
             is AlarmPhase.Monitoring -> "Learning room baseline…" to
                 "Collecting baseline · Window ${fmt.format(p.start)} – ${fmt.format(p.end)}"
             is AlarmPhase.InWindow -> "Listening for stirring…" to

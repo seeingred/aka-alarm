@@ -87,16 +87,16 @@ fun MainScreen(store: AlarmStore, onStart: () -> Unit) {
 
         if (showSettings) {
             ModalBottomSheet(onDismissRequest = { showSettings = false }) {
-                SensitivitySheet(store)
+                SettingsSheet(store)
             }
         }
     }
 }
 
-// MARK: - Sensitivity settings
+// MARK: - Settings
 
 @Composable
-private fun SensitivitySheet(store: AlarmStore) {
+private fun SettingsSheet(store: AlarmStore) {
     val micActive = store.phase.kind == AlarmPhase.Kind.MONITORING ||
         store.phase.kind == AlarmPhase.Kind.IN_WINDOW
 
@@ -140,6 +140,45 @@ private fun SensitivitySheet(store: AlarmStore) {
             )
             Text(
                 "Very high",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+            )
+        }
+
+        Spacer(Modifier.height(24.dp))
+        Text("Start listening", style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "When the microphone turns on: ${
+                Tuning.activationLeadLabel(store.activationLeadMinutes)
+            }. A later start saves battery overnight; the alarm always fires by " +
+                "the end of the window either way.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+        )
+
+        Spacer(Modifier.height(8.dp))
+        // Discrete positions over Tuning.ACTIVATION_LEAD_OPTIONS_MINUTES, for the
+        // same reason the sensitivity slider is stepped (see comment above).
+        val leadOptions = Tuning.ACTIVATION_LEAD_OPTIONS_MINUTES
+        val leadIndex = leadOptions.indexOf(store.activationLeadMinutes).coerceAtLeast(0)
+        Slider(
+            value = leadIndex.toFloat(),
+            onValueChange = { raw ->
+                val idx = raw.roundToInt().coerceIn(0, leadOptions.lastIndex)
+                store.updateActivationLead(leadOptions[idx])
+            },
+            valueRange = 0f..leadOptions.lastIndex.toFloat(),
+            steps = leadOptions.size - 2,
+        )
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(
+                "Right away",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+            )
+            Text(
+                "5 min before",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
             )
@@ -329,7 +368,14 @@ private fun MonitoringView(store: AlarmStore) {
         val statusText = when (store.phase.kind) {
             AlarmPhase.Kind.ARMED -> store.phase.window?.first?.let { start ->
                 "Alarm armed — mic off until ${
-                    wFmt.format(Date(AlarmSchedule.baselineStartMillis(start)))
+                    wFmt.format(
+                        Date(
+                            AlarmSchedule.baselineStartMillis(
+                                start,
+                                store.activationLeadMinutes,
+                            )
+                        )
+                    )
                 }"
             } ?: "Alarm armed — mic off"
             AlarmPhase.Kind.IN_WINDOW -> "Listening for stirring…"

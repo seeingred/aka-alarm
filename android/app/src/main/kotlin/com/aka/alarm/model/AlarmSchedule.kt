@@ -33,19 +33,31 @@ object AlarmSchedule {
         return start to end
     }
 
-    /** Epoch millis when mic analysis should begin for the given window start. */
-    fun baselineStartMillis(windowStartMillis: Long): Long =
-        windowStartMillis - Tuning.baselineWindow.inWholeMilliseconds
+    /**
+     * Epoch millis when mic analysis should begin for the given window start.
+     * [activationLeadMinutes] < 0 means "right after starting" — modelled as
+     * [Long.MIN_VALUE] so every `now >= baselineStart` comparison passes and the
+     * Armed phase is skipped entirely. Positive leads are clamped to at least
+     * [Tuning.baselineWindow] so the rolling baseline is fully built by the time
+     * spike detection arms at window start.
+     */
+    fun baselineStartMillis(windowStartMillis: Long, activationLeadMinutes: Int): Long =
+        if (activationLeadMinutes < 0) Long.MIN_VALUE
+        else windowStartMillis - maxOf(
+            activationLeadMinutes * 60_000L,
+            Tuning.baselineWindow.inWholeMilliseconds,
+        )
 
     /** Phase to enter when the user taps Start at [nowMillis]. */
     fun initialPhase(
         nowMillis: Long,
         windowStartMillis: Long,
         windowEndMillis: Long,
+        activationLeadMinutes: Int,
     ): AlarmPhase = when {
         nowMillis >= windowStartMillis ->
             AlarmPhase.InWindow(windowStartMillis, windowEndMillis)
-        nowMillis >= baselineStartMillis(windowStartMillis) ->
+        nowMillis >= baselineStartMillis(windowStartMillis, activationLeadMinutes) ->
             AlarmPhase.Monitoring(windowStartMillis, windowEndMillis)
         else ->
             AlarmPhase.Armed(windowStartMillis, windowEndMillis)

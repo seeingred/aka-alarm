@@ -1,5 +1,33 @@
 # Changelog
 
+## Unreleased
+
+**Configurable mic activation window (iOS + Android)** — built on
+[PR #3](https://github.com/seeingred/aka-alarm/pull/3) by @nullptroma, who
+contributed the deferred-mic architecture (Armed phase + Doze-proof exact
+alarm + unit tests).
+
+- New Armed phase: after tapping Start the mic stays **off** — the app just
+  holds its foreground notification — until the configurable activation lead
+  before the wake window. Saves battery and keeps the mic dark overnight.
+- New "Start listening" setting in the gear sheet: Right away → 8 h → 4 h →
+  2 h → 1 h (default) → 30 min → 15 min → 5 min before the window. Persisted,
+  and applies live: changing it while armed re-computes the phase on the spot
+  (mic starts/stops immediately and the scheduled wakeup is re-armed).
+- Android wakes from the Armed phase via `AlarmManager.setExactAndAllowWhileIdle`
+  (`USE_EXACT_ALARM` on 13+, `SCHEDULE_EXACT_ALARM` on 12), with stale-alarm
+  validation when re-arming. On top of the PR:
+  - Guarded against `SecurityException` when the exact-alarm permission is
+    revoked (possible on Android 12) — falls back to inexact allow-while-idle
+    delivery.
+  - Added an in-process fallback timer and an on-foreground catch-up check so
+    a single dropped OEM alarm can't leave the app armed forever with no
+    wake-up — the alarm always fires by the end of the window.
+- iOS mirrors the same phase machine with in-process timers plus a
+  foreground catch-up (iOS keeps the screen on while armed, so timers tick).
+- Notification and status line show the plan: "Alarm armed — mic off until
+  HH:MM".
+
 ## 1.1.4 — 2026-08-08
 
 Feature release — adjustable microphone sensitivity (iOS + Android).

@@ -10,7 +10,7 @@ struct MainView: View {
             switch store.phase {
             case .idle:
                 SetAlarmView()
-            case .monitoring, .inWindow:
+            case .armed, .monitoring, .inWindow:
                 MonitoringView()
             default:
                 EmptyView()
@@ -137,16 +137,18 @@ private struct MonitoringView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                MicLevelView(
-                    currentDB: store.micLevelDB,
-                    baselineDB: store.baselineDB,
-                    thresholdDB: store.baselineDB
-                        + Tuning.spikeThresholdDB(sensitivity: store.sensitivity)
-                )
-                .frame(height: 80)
-                .padding(.horizontal, 32)
+                if store.phase.kind != .armed {
+                    MicLevelView(
+                        currentDB: store.micLevelDB,
+                        baselineDB: store.baselineDB,
+                        thresholdDB: store.baselineDB
+                            + Tuning.spikeThresholdDB(sensitivity: store.sensitivity)
+                    )
+                    .frame(height: 80)
+                    .padding(.horizontal, 32)
+                }
 
-                Text(store.phase.kind == .inWindow ? "Listening for stirring…" : "Learning room baseline…")
+                Text(statusText)
                     .font(.callout)
                     .foregroundStyle(.secondary)
 
@@ -189,6 +191,23 @@ private struct MonitoringView: View {
         .simultaneousGesture(TapGesture().onEnded { resetDim() })
         .onAppear { startDimFade() }
         .sheet(isPresented: $showSettings) { SensitivitySheet() }
+    }
+
+    private var statusText: String {
+        switch store.phase {
+        case .armed(let start, _):
+            if let baselineStart = Tuning.baselineStart(
+                windowStart: start, leadMinutes: store.activationLeadMinutes
+            ) {
+                let time = baselineStart.formatted(.dateTime.hour().minute())
+                return "Alarm armed — mic off until \(time)"
+            }
+            return "Alarm armed — mic off"
+        case .inWindow:
+            return "Listening for stirring…"
+        default:
+            return "Learning room baseline…"
+        }
     }
 
     private func startDimFade() {
@@ -268,10 +287,47 @@ struct SensitivitySheet: View {
             }
             .font(.caption2)
             .foregroundStyle(.secondary)
+
+            Text("Start listening")
+                .font(.headline)
+                .padding(.top, 12)
+            Text(
+                "When the microphone turns on: \(Tuning.activationLeadLabel(minutes: store.activationLeadMinutes)). "
+                + "A later start saves battery overnight; the alarm always fires by the end of the window either way."
+            )
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+
+            // Discrete positions over Tuning.activationLeadOptionsMinutes,
+            // matching the Android sheet. Auto-saves via the didSet.
+            Slider(
+                value: Binding(
+                    get: {
+                        Double(
+                            Tuning.activationLeadOptionsMinutes
+                                .firstIndex(of: store.activationLeadMinutes) ?? 0
+                        )
+                    },
+                    set: { raw in
+                        let options = Tuning.activationLeadOptionsMinutes
+                        let idx = min(max(Int(raw.rounded()), 0), options.count - 1)
+                        store.activationLeadMinutes = options[idx]
+                    }
+                ),
+                in: 0...Double(Tuning.activationLeadOptionsMinutes.count - 1),
+                step: 1
+            )
+            HStack {
+                Text("Right away")
+                Spacer()
+                Text("5 min before")
+            }
+            .font(.caption2)
+            .foregroundStyle(.secondary)
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .presentationDetents([.height(300)])
+        .presentationDetents([.height(440)])
     }
 }
 

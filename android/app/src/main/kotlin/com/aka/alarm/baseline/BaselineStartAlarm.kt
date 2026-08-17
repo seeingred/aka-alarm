@@ -26,25 +26,37 @@ object BaselineStartAlarm {
     data class Request(
         val windowStartMillis: Long,
         val windowEndMillis: Long,
+        val activationLeadMinutes: Int,
     ) {
-        val baselineAtMillis: Long = AlarmSchedule.baselineStartMillis(windowStartMillis)
+        val baselineAtMillis: Long =
+            AlarmSchedule.baselineStartMillis(windowStartMillis, activationLeadMinutes)
     }
 
-    /** True when the receiver should move [phase] from Armed into Monitoring. */
+    /**
+     * True when the receiver should move [phase] from Armed into Monitoring.
+     * [activationLeadMinutes] is the *current* setting; [AlarmStore] re-arms the
+     * alarm whenever the setting changes, so a fired intent carrying a stale
+     * baselineAt is rejected here and superseded by the rescheduled one.
+     */
     fun shouldTransitionToMonitoring(
         phase: AlarmPhase,
         windowStartMillis: Long,
         windowEndMillis: Long,
         baselineAtMillis: Long,
+        activationLeadMinutes: Int,
     ): Boolean {
         if (phase !is AlarmPhase.Armed) return false
         if (phase.start != windowStartMillis || phase.end != windowEndMillis) return false
-        if (baselineAtMillis != AlarmSchedule.baselineStartMillis(windowStartMillis)) return false
+        if (baselineAtMillis !=
+            AlarmSchedule.baselineStartMillis(windowStartMillis, activationLeadMinutes)
+        ) {
+            return false
+        }
         return true
     }
 
-    fun requestFrom(armed: AlarmPhase.Armed): Request =
-        Request(armed.start, armed.end)
+    fun requestFrom(armed: AlarmPhase.Armed, activationLeadMinutes: Int): Request =
+        Request(armed.start, armed.end, activationLeadMinutes)
 
     fun intent(context: Context, request: Request): Intent =
         Intent(context, BaselineStartReceiver::class.java).apply {
@@ -75,16 +87,45 @@ class BaselineStartAlarmScheduler(private val context: Context) {
         context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
     fun schedule(request: BaselineStartAlarm.Request) {
+        // "Right after starting" never enters Armed, but guard anyway.
+        if (request.baselineAtMillis == Long.MIN_VALUE) return
         val pendingIntent = BaselineStartAlarm.pendingIntent(
             context,
             request,
             PendingIntent.FLAG_UPDATE_CURRENT,
         ) ?: return
-        alarmManager.setExactAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,
-            request.baselineAtMillis,
-            pendingIntent,
-        )
+        // SCHEDULE_EXACT_ALARM (API 31–32) is granted by default but user-revocable;
+        // calling setExactAndAllowWhileIdle without it throws SecurityException.
+        // USE_EXACT_ALARM (33+) can't be revoked, but keep the guard uniform.
+        // Inexact delivery still exits Doze, just possibly minutes late — the
+        // in-process fallback timer in AlarmStore covers the same gap.
+        val exactAllowed = try {
+            alarmManager.canScheduleExactAlarms()
+        } catch (_: SecurityException) {
+            false
+        }
+        try {
+            if (exactAllowed) {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    request.baselineAtMillis,
+                    pendingIntent,
+                )
+            } else {
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    request.baselineAtMillis,
+                    pendingIntent,
+                )
+            }
+        } catch (_: SecurityException) {
+            // Revoked between check and call — fall back to inexact.
+            alarmManager.setAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                request.baselineAtMillis,
+                pendingIntent,
+            )
+        }
     }
 
     fun cancel() {
