@@ -5,9 +5,11 @@ import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.VibrationEffect
+import android.os.Vibrator
 import android.os.VibratorManager
 import com.aka.alarm.Tuning
 import kotlin.math.PI
@@ -104,9 +106,14 @@ class AlarmPlayer(private val context: Context) {
     // MARK: Vibration
 
     private fun startVibration() {
-        val vm = context.getSystemService(VibratorManager::class.java) ?: return
-        val v = vm.defaultVibrator
-        if (!v.hasVibrator()) return
+        // VibratorManager is API 31+; below that the legacy Vibrator service is
+        // the only path (deprecated on 31+, still fully functional on 26–30).
+        val v: Vibrator? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            context.getSystemService(VibratorManager::class.java)?.defaultVibrator
+        } else {
+            context.getSystemService(Vibrator::class.java)
+        }
+        if (v == null || !v.hasVibrator()) return
 
         val pulse = VibrationEffect.createOneShot(400, VibrationEffect.DEFAULT_AMPLITUDE)
         v.vibrate(pulse)

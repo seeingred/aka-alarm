@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import androidx.compose.runtime.snapshotFlow
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import com.aka.alarm.AlarmApp
@@ -62,7 +63,10 @@ class AlarmService : LifecycleService() {
                 return START_NOT_STICKY
             }
             ServiceStartCommandAction.PromoteToForeground -> {
-                startForeground(
+                // ServiceCompat: the typed startForeground overload is API 29+;
+                // the compat shim drops the type on 26–28 where it doesn't exist.
+                ServiceCompat.startForeground(
+                    this,
                     NOTIFICATION_ID,
                     buildNotification(store.phase, store.activationLeadMinutes),
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE

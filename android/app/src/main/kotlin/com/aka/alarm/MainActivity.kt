@@ -12,7 +12,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -65,11 +67,17 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = Color.Transparent,
                 ) {
-                    val phaseKind = store.phase.kind
-                    when (phaseKind) {
-                        AlarmPhase.Kind.ALARMING,
-                        AlarmPhase.Kind.SNOOZING -> AlarmScreen(store)
-                        else -> MainScreen(store, onStart = ::tryStartAlarm)
+                    // Keep the gradient full-bleed but lift interactive content
+                    // above the navigation bar: on API 26–28 the 3-button navbar
+                    // is opaque and was covering the Start button / slide hints.
+                    // On gesture-nav devices this adds only the small inset.
+                    Box(Modifier.fillMaxSize().navigationBarsPadding()) {
+                        val phaseKind = store.phase.kind
+                        when (phaseKind) {
+                            AlarmPhase.Kind.ALARMING,
+                            AlarmPhase.Kind.SNOOZING -> AlarmScreen(store)
+                            else -> MainScreen(store, onStart = ::tryStartAlarm)
+                        }
                     }
                     if (store.micPermissionDenied) {
                         AlertDialog(

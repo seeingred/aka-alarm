@@ -94,15 +94,21 @@ class BaselineStartAlarmScheduler(private val context: Context) {
             request,
             PendingIntent.FLAG_UPDATE_CURRENT,
         ) ?: return
-        // SCHEDULE_EXACT_ALARM (API 31–32) is granted by default but user-revocable;
-        // calling setExactAndAllowWhileIdle without it throws SecurityException.
+        // Below API 31 exact alarms need no permission at all. On 31–32
+        // SCHEDULE_EXACT_ALARM is granted by default but user-revocable; calling
+        // setExactAndAllowWhileIdle without it throws SecurityException.
         // USE_EXACT_ALARM (33+) can't be revoked, but keep the guard uniform.
-        // Inexact delivery still exits Doze, just possibly minutes late — the
-        // in-process fallback timer in AlarmStore covers the same gap.
-        val exactAllowed = try {
-            alarmManager.canScheduleExactAlarms()
-        } catch (_: SecurityException) {
-            false
+        // (canScheduleExactAlarms itself only exists on 31+.) Inexact delivery
+        // still exits Doze, just possibly minutes late — the in-process fallback
+        // timer in AlarmStore covers the same gap.
+        val exactAllowed = if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S) {
+            true
+        } else {
+            try {
+                alarmManager.canScheduleExactAlarms()
+            } catch (_: SecurityException) {
+                false
+            }
         }
         try {
             if (exactAllowed) {

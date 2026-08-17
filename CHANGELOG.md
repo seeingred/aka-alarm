@@ -1,6 +1,28 @@
 # Changelog
 
-## Unreleased
+## 1.2.0 — 2026-08-17
+
+**Store "What's new" copy (paste-ready):**
+
+> aka Alarm 1.2.0 — kinder to your battery, and runs on far more phones.
+>
+> • New "Start listening" setting: the microphone now stays off until shortly before your wake-up window (1 hour by default, adjustable from "right away" to "5 minutes before"). Less battery use, less mic time.
+> • Android: now installs on Android 8.0 and newer (was Android 12+).
+> • iOS: fixed the microphone going deaf while AirPods are connected, and a slow freeze when starting the alarm.
+> • Fixed buttons hiding behind the navigation bar on phones with 3-button navigation.
+
+**Android 8.0+ support (minSdk 34→31→26)**
+
+- Lowered `minSdk` to 26, fulfilling the promise on issue #1. Legacy
+  `Vibrator` fallback below API 31 (`VibratorManager` is 31+), SDK-gated
+  `canScheduleExactAlarms()` (the API itself is 31+; below that exact alarms
+  need no permission), `ServiceCompat.startForeground` (the typed overload is
+  29+), and API-27 theme attributes annotated. Verified on a genuine
+  Android 8.0 emulator: install, foreground service, monitoring, alarming
+  with vibration.
+- Interactive content is now lifted above the navigation bar
+  (`navigationBarsPadding`) — on API 26–28's opaque 3-button navbar the
+  Start button and slide hints were half-hidden behind it.
 
 **Configurable mic activation window (iOS + Android)** — built on
 [PR #3](https://github.com/seeingred/aka-alarm/pull/3) by @nullptroma, who
