@@ -119,6 +119,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Self-heal: if the baseline wakeup was dropped while we slept (OEM alarm
+        // throttling, revoked exact-alarm permission), catch up now that the user
+        // is looking at the app.
+        store.recheckPhase()
         ContextCompat.registerReceiver(
             this,
             debugReceiver,

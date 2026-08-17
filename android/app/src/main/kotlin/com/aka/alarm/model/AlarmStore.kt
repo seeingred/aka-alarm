@@ -13,10 +13,13 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import com.aka.alarm.Tuning
+import com.aka.alarm.baseline.BaselineStartAlarm
+import com.aka.alarm.baseline.BaselineStartAlarmScheduler
 import com.aka.alarm.audio.AlarmPlayer
 import com.aka.alarm.audio.MicMonitor
 import com.aka.alarm.motion.MotionMonitor
 import com.aka.alarm.service.AlarmService
+import com.aka.alarm.service.AlarmServiceLifecycle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -28,11 +31,13 @@ import kotlin.random.Random
 
 /**
  * Singleton-ish state machine for the alarm. Mirrors the iOS `AlarmStore`:
- *   idle → monitoring → inWindow → alarming ⇄ snoozing → … → idle
+ *   idle → armed → monitoring → inWindow → alarming ⇄ snoozing → … → idle
  *
  * Owns the lifecycle of [MicMonitor], [AlarmPlayer], [MotionMonitor]. Starts and
  * stops [AlarmService] when entering/leaving non-idle phases so the foreground
- * notification + microphone stay alive while the screen is off.
+ * notification keeps the process alive overnight; mic analysis begins
+ * [activationLeadMinutes] before the wake-window start (user-configurable,
+ * -1 = immediately).
  */
 class AlarmStore(private val app: Application) {
 
@@ -52,6 +57,13 @@ class AlarmStore(private val app: Application) {
     var sensitivity by mutableFloatStateOf(Tuning.DEFAULT_SENSITIVITY)
         private set
 
+    /**
+     * Minutes before the wake window at which the mic starts listening;
+     * -1 = right after starting. Persisted immediately on change.
+     */
+    var activationLeadMinutes by mutableIntStateOf(Tuning.DEFAULT_ACTIVATION_LEAD_MINUTES)
+        private set
+
     var micPermissionDenied by mutableStateOf(false)
 
     private val mic = MicMonitor().apply {
@@ -66,6 +78,7 @@ class AlarmStore(private val app: Application) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var phaseJob: Job? = null
+    private val baselineAlarm = BaselineStartAlarmScheduler(app)
 
     private val prefs: SharedPreferences =
         app.getSharedPreferences("akaalarm", Context.MODE_PRIVATE)
@@ -82,6 +95,31 @@ class AlarmStore(private val app: Application) {
         sensitivity = prefs.getFloat(KEY_SENSITIVITY, Tuning.DEFAULT_SENSITIVITY)
             .coerceIn(0f, 1f)
         mic.spikeThresholdDb = Tuning.spikeThresholdDb(sensitivity)
+        val savedLead = prefs.getInt(KEY_ACTIVATION_LEAD, Tuning.DEFAULT_ACTIVATION_LEAD_MINUTES)
+        activationLeadMinutes = if (savedLead in Tuning.ACTIVATION_LEAD_OPTIONS_MINUTES) {
+            savedLead
+        } else {
+            Tuning.DEFAULT_ACTIVATION_LEAD_MINUTES
+        }
+    }
+
+    /**
+     * Persists straight away. If an alarm is currently Armed or Monitoring the
+     * phase is recomputed so the change applies tonight, not tomorrow — this
+     * also re-arms the baseline exact alarm with the new lead (a previously
+     * scheduled intent carrying the old baselineAt is rejected as stale).
+     */
+    fun updateActivationLead(minutes: Int) {
+        if (minutes !in Tuning.ACTIVATION_LEAD_OPTIONS_MINUTES) return
+        activationLeadMinutes = minutes
+        prefs.edit { putInt(KEY_ACTIVATION_LEAD, minutes) }
+        val p = phase
+        if (p is AlarmPhase.Armed || p is AlarmPhase.Monitoring) {
+            val (start, end) = p.window ?: return
+            transition(
+                AlarmSchedule.initialPhase(System.currentTimeMillis(), start, end, minutes)
+            )
+        }
     }
 
     /** Applies live to the running mic monitor and persists straight away. */
@@ -96,11 +134,18 @@ class AlarmStore(private val app: Application) {
 
     fun startAlarm(now: Long = System.currentTimeMillis()) {
         persistSelection()
-        val (start, end) = computeWindow(now)
-        if (now >= start) {
-            transition(AlarmPhase.InWindow(start, end))
-        } else {
-            transition(AlarmPhase.Monitoring(start, end))
+        val (start, end) = AlarmSchedule.computeWakeWindow(now, selectedHour, selectedMinute)
+        transition(AlarmSchedule.initialPhase(now, start, end, activationLeadMinutes))
+    }
+
+    /**
+     * Self-heal on app foreground: if the process slept through the baseline
+     * wakeup (dropped exact alarm, stalled fallback timer), catch up now.
+     */
+    fun recheckPhase(now: Long = System.currentTimeMillis()) {
+        val p = phase as? AlarmPhase.Armed ?: return
+        if (now >= AlarmSchedule.baselineStartMillis(p.start, activationLeadMinutes)) {
+            transition(AlarmSchedule.initialPhase(now, p.start, p.end, activationLeadMinutes))
         }
     }
 
@@ -115,10 +160,30 @@ class AlarmStore(private val app: Application) {
         const val KEY_HOUR = "selectedHour"
         const val KEY_MINUTE = "selectedMinute"
         const val KEY_SENSITIVITY = "sensitivity"
+        const val KEY_ACTIVATION_LEAD = "activationLeadMinutes"
     }
 
     fun cancelAlarm() {
         transition(AlarmPhase.Idle)
+    }
+
+    /** Called by [com.aka.alarm.baseline.BaselineStartReceiver] after an exact baseline wakeup. */
+    internal fun onBaselineStartAlarmFired(
+        windowStartMillis: Long,
+        windowEndMillis: Long,
+        baselineAtMillis: Long,
+    ) {
+        if (!BaselineStartAlarm.shouldTransitionToMonitoring(
+                phase,
+                windowStartMillis,
+                windowEndMillis,
+                baselineAtMillis,
+                activationLeadMinutes,
+            )
+        ) {
+            return
+        }
+        transition(AlarmPhase.Monitoring(windowStartMillis, windowEndMillis))
     }
 
     // -----------------------------------------------------------------------
@@ -182,9 +247,12 @@ class AlarmStore(private val app: Application) {
     private fun transition(next: AlarmPhase) {
         phaseJob?.cancel()
         phaseJob = null
+        // Drop any pending baseline exact alarm; re-scheduled below if still Armed.
+        baselineAlarm.cancel()
 
-        val previouslyActive = phase !is AlarmPhase.Idle
-        val nextActive = next !is AlarmPhase.Idle
+        val current = phase
+
+        phase = next
 
         when (next) {
             AlarmPhase.Idle -> {
@@ -193,6 +261,29 @@ class AlarmStore(private val app: Application) {
                 player.stop()
                 micLevelDb = Tuning.DB_FLOOR
                 baselineDb = Tuning.DB_FLOOR
+            }
+            is AlarmPhase.Armed -> {
+                mic.stop()
+                motion.stop()
+                player.stop()
+                micLevelDb = Tuning.DB_FLOOR
+                baselineDb = Tuning.DB_FLOOR
+                // Exact alarm survives Doze; in-process delay does not (see BaselineStartAlarm).
+                baselineAlarm.schedule(
+                    BaselineStartAlarm.requestFrom(next, activationLeadMinutes)
+                )
+                // Belt-and-braces: if the AlarmManager wakeup is dropped or denied
+                // (OEM battery managers, revoked exact-alarm permission), this
+                // in-process timer still fires whenever the CPU is next awake, and
+                // recheckPhase() catches up on app foreground. Without a fallback a
+                // single dropped broadcast would mean the alarm never rings.
+                scheduleTransition(
+                    AlarmSchedule.baselineStartMillis(next.start, activationLeadMinutes)
+                ) {
+                    (phase as? AlarmPhase.Armed)?.let {
+                        transition(AlarmPhase.Monitoring(it.start, it.end))
+                    }
+                }
             }
             is AlarmPhase.Monitoring -> {
                 if (!mic.isRunning) mic.start()
@@ -232,13 +323,13 @@ class AlarmStore(private val app: Application) {
             }
         }
 
-        phase = next
-
-        // Service follows the phase so the persistent notification + mic stay alive
-        // through screen-off / app-backgrounded.
-        if (nextActive && !previouslyActive) {
+        // Service follows the phase so the persistent notification keeps the process
+        // alive through screen-off / app-backgrounded; mic work is deferred separately.
+        // Phase is published above before side effects and before startForegroundService
+        // so onStartCommand never observes the previous Idle state on a new start.
+        if (AlarmServiceLifecycle.shouldStartForegroundService(current, next)) {
             ContextCompat.startForegroundService(app, Intent(app, AlarmService::class.java))
-        } else if (!nextActive && previouslyActive) {
+        } else if (AlarmServiceLifecycle.shouldStopService(current, next)) {
             app.stopService(Intent(app, AlarmService::class.java))
         }
     }
@@ -249,24 +340,5 @@ class AlarmStore(private val app: Application) {
             delay(delayMs)
             action()
         }
-    }
-
-    private fun computeWindow(now: Long): Pair<Long, Long> {
-        val cal = Calendar.getInstance().apply {
-            timeInMillis = now
-            set(Calendar.HOUR_OF_DAY, selectedHour)
-            set(Calendar.MINUTE, selectedMinute)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }
-        var start = cal.timeInMillis
-        var end = start + Tuning.wakeWindowDuration.inWholeMilliseconds
-        // Only roll forward a day if the *entire* window has already passed.
-        if (end <= now) {
-            cal.add(Calendar.DAY_OF_YEAR, 1)
-            start = cal.timeInMillis
-            end = start + Tuning.wakeWindowDuration.inWholeMilliseconds
-        }
-        return start to end
     }
 }

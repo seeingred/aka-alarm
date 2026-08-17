@@ -9,6 +9,32 @@ enum Tuning {
     static let snoozeMinDuration: TimeInterval = 60
     static let snoozeMaxDuration: TimeInterval = 15 * 60
 
+    // MARK: Mic activation lead
+    /// How long before the wake window the microphone starts listening. Until
+    /// then the alarm sits in the `armed` phase with the mic off. -1 = start
+    /// listening right after the user taps Start (pre-1.1.5 behaviour). The
+    /// minimum equals `baselineWindow` so the rolling baseline is fully built
+    /// by the time spike detection arms at window start.
+    static let activationLeadOptionsMinutes = [-1, 480, 240, 120, 60, 30, 15, 5]
+    static let defaultActivationLeadMinutes = 60
+
+    /// Date when mic analysis should begin; `nil` means "right after starting"
+    /// (the armed phase is skipped entirely).
+    static func baselineStart(windowStart: Date, leadMinutes: Int) -> Date? {
+        guard leadMinutes >= 0 else { return nil }
+        let lead = max(Double(leadMinutes) * 60, baselineWindow)
+        return windowStart.addingTimeInterval(-lead)
+    }
+
+    static func activationLeadLabel(minutes: Int) -> String {
+        if minutes < 0 { return "right after starting" }
+        if minutes >= 60 && minutes % 60 == 0 {
+            return minutes == 60 ? "1 hour before the window"
+                                 : "\(minutes / 60) hours before the window"
+        }
+        return "\(minutes) minutes before the window"
+    }
+
     // MARK: Microphone / spike detection
     /// Rolling window over which the ambient baseline is averaged.
     static let baselineWindow: TimeInterval = 5 * 60
