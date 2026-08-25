@@ -1,5 +1,6 @@
 package com.aka.alarm.ui
 
+import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Box
@@ -21,7 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -43,43 +44,84 @@ fun NumberWheel(
     visibleRows: Int = 5,
     fontSize: Int = 44,
 ) {
+    val configuration = LocalConfiguration.current
+
     val initialIndex = values.indexOf(selection).coerceAtLeast(0)
+
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
+
     val snapBehavior = rememberSnapFlingBehavior(lazyListState = listState)
 
     val centeredIndex by remember(values) {
         derivedStateOf {
             val info = listState.layoutInfo
-            // visibleItemsInfo[i].offset is in scroll coordinates, where
-            // `viewportStartOffset = -beforeContentPadding`. The viewport's
-            // visual centre in *those* coords is the midpoint of start/end —
-            // NOT `viewportSize.height / 2`, which would shift the centre by
-            // the top content padding and produce an N-row offset.
+
             val viewportCenter = (info.viewportStartOffset + info.viewportEndOffset) / 2f
+
             info.visibleItemsInfo
-                .minByOrNull { abs(it.offset + it.size / 2f - viewportCenter) }
+                .minByOrNull {abs(it.offset + it.size / 2f - viewportCenter)}
                 ?.index ?: initialIndex
         }
     }
 
-    // Emit selection changes when scrolling settles.
     LaunchedEffect(listState.isScrollInProgress, centeredIndex) {
-        if (!listState.isScrollInProgress && centeredIndex in values.indices) {
-            val v = values[centeredIndex]
-            if (v != selection) onSelectionChange(v)
-        }
-    }
+        if (
+            !listState.isScrollInProgress &&
+            centeredIndex in values.indices
+        ) {
+            val value = values[centeredIndex]
 
-    // External selection change → animate to that row.
-    LaunchedEffect(selection) {
-        val target = values.indexOf(selection)
-        if (target in values.indices && target != centeredIndex && !listState.isScrollInProgress) {
-            listState.animateScrollToItem(target)
+            if (value != selection) {
+                onSelectionChange(value)
+            }
         }
     }
 
     val totalHeight = rowHeight * visibleRows
     val centerPadding = rowHeight * ((visibleRows - 1) / 2)
+
+    LaunchedEffect(configuration.orientation) {
+
+        androidx.compose.runtime.withFrameNanos { }
+
+        val target = values.indexOf(selection)
+
+        if (target !in values.indices) {
+            return@LaunchedEffect
+        }
+
+        val item = listState.layoutInfo.visibleItemsInfo
+            .firstOrNull { it.index == target }
+            ?: return@LaunchedEffect
+
+        val info = listState.layoutInfo
+
+        val viewportCenter =
+            (info.viewportStartOffset + info.viewportEndOffset) / 2f
+
+        val itemCenter =
+            item.offset + item.size / 2f
+
+        val delta = itemCenter - viewportCenter
+
+        if (delta != 0f) {
+            listState.scroll {
+                scrollBy(delta)
+            }
+        }
+    }
+
+    LaunchedEffect(selection) {
+        val target = values.indexOf(selection)
+
+        if (
+            target in values.indices &&
+            target != centeredIndex &&
+            !listState.isScrollInProgress
+        ) {
+            listState.animateScrollToItem(target)
+        }
+    }
 
     Box(modifier = modifier.height(totalHeight)) {
         // Glass selection pill behind the centered row.
