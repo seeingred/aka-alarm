@@ -48,7 +48,9 @@ private struct SetAlarmView: View {
         GeometryReader { geo in
             let short = geo.size.height < stackedLayoutMinHeight
             let sideBySide = geo.size.width > geo.size.height
-            let rows = short ? 3 : 5
+            // Side by side only the title shares the column with the wheels,
+            // so five rows fit from ~520 pt of height; stacked needs ~700.
+            let rows = (sideBySide ? geo.size.height >= 520 : !short) ? 5 : 3
 
             if sideBySide {
                 HStack(spacing: 24) {
@@ -74,6 +76,9 @@ private struct SetAlarmView: View {
                     Spacer(minLength: 0)
                     startButton
                 }
+                // On a regular-width canvas (Duo's inner display) the pills and
+                // the Start button would otherwise stretch across the screen.
+                .frame(maxWidth: 560)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
@@ -101,9 +106,6 @@ private struct SetAlarmView: View {
             wheel(selection: $store.selectedMinute, values: minuteOptions)
         }
         .frame(height: CGFloat(rows) * rowHeight)
-        // On a regular-width canvas (Duo's inner display) the pills would
-        // otherwise stretch to half the screen each.
-        .frame(maxWidth: 520)
         .padding(.horizontal, 16)
     }
 
