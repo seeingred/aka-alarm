@@ -164,6 +164,40 @@ Audit of the current iOS code against the above, worst first.
    in the store copy. Consider Duo screenshots once App Store Connect accepts
    them.
 
+## Status (2026-10-04)
+
+Done without the Duo SDK, verified with the debug canvas harness below:
+
+- `SetAlarmView` is size-driven: side by side when wider than tall, three-row
+  wheels under 700 pt stacked / 520 pt side by side, stacked column capped at
+  560 pt. Regular iPhones unchanged.
+- Settings sheet opens at `.fraction(0.75)` instead of a fixed 620 pt.
+
+Still needs Xcode 27.1 + the Duo simulator: the gear/safe-area check on the
+outer display, the tent-pose arrangement (items 3–4 above), and everything
+in the hardware list. Note that the first beta installed here turned out to
+be **Xcode 27.2 beta 2**, which has the `iPhone Duo` device type (minimum
+runtime 27.1) but none of the Duo APIs in its SDK — the 27.1 line is the one.
+
+### Debug canvas harness
+
+Debug builds accept a launch argument that renders the app at any logical
+size, scaled to fit, on whatever simulator is handy:
+
+```sh
+xcrun simctl launch <udid> com.aka.alarm -canvas 951x669
+xcrun simctl io <udid> screenshot out.png
+```
+
+Build with `TARGETED_DEVICE_FAMILY="1,2"` into a throwaway derived-data
+folder and run it on the iPad Pro 11" simulator so the 951 pt canvases
+aren't scaled down. It is our layout only — no fold, no vertical bars, no
+asymmetric safe area.
+
+Xcode 27 no longer ships a standalone Simulator app, and `simctl` has no
+rotate or pose command, so real poses are Device Hub (GUI) only: one person
+drives Device Hub, screenshots come from `simctl io`.
+
 ## Test matrix
 
 Run the app in the Duo simulator in each of these and screenshot every
