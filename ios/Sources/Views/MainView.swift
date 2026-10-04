@@ -59,7 +59,7 @@ private struct SetAlarmView: View {
                 // toolbar items out in it. The gear and Start go there and the
                 // canvas keeps only the picker. See VerticalBar.swift.
                 NavigationStack {
-                    canvas(withStart: false)
+                    verticalBarCanvas
                         .toolbar {
                             ToolbarItem(placement: .topBarTrailing) {
                                 Button {
@@ -81,6 +81,48 @@ private struct SetAlarmView: View {
             }
         }
         .sheet(isPresented: $showSettings) { SensitivitySheet() }
+    }
+
+    /// Height of a standard bar item (the Start button in the vertical bar).
+    private let barItemHeight: CGFloat = 48
+
+    /// Layout next to a vertical bar: the title sits level with the camera
+    /// cut-out at the top of the bar, the window label level with the Start
+    /// item at its bottom, and the picker takes everything in between.
+    private var verticalBarCanvas: some View {
+        GeometryReader { geo in
+            // The cut-out is a reserved region; without one (or on the 27.0
+            // SDK) fall back to a band the height of a bar item.
+            let cameraMidY = cameraCenterY(in: geo) ?? barItemHeight / 2
+            let titleBand = max(2 * cameraMidY, barItemHeight)
+            // The bottom bar item ends at the safe-area edge, where this
+            // reader ends, so a band of its height centres the label on it.
+            let labelBand = barItemHeight
+            let middle = geo.size.height - titleBand - labelBand
+            let rows = middle >= 5 * rowHeight + 40 ? 5 : 3
+
+            VStack(spacing: 0) {
+                title
+                    .frame(height: titleBand)
+                wheels(rows: rows)
+                    .frame(maxHeight: .infinity)
+                windowLabelText
+                    .frame(height: labelBand)
+            }
+            .frame(maxWidth: 560)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .padding(.horizontal)
+    }
+
+    private func cameraCenterY(in geo: GeometryProxy) -> CGFloat? {
+        #if canImport(SwiftUICore, _version: 8.0.85)
+        if #available(iOS 27.1, *) {
+            return geo.reservedRegions(kind: .occlusion)
+                .first(where: \.isActive)?.frame.midY
+        }
+        #endif
+        return nil
     }
 
     private func canvas(withStart: Bool) -> some View {

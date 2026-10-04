@@ -189,8 +189,11 @@ pose, outer display 466 × 678 pt:
 - The outer display puts the status items (camera cut-out, clock, radio) in
   a **vertical bar down the trailing edge**. The gear and Start now live in
   that bar as standard toolbar items (gear under the status items, Start as
-  the prominent play button at the bottom); the canvas keeps only the
-  picker. Same on the monitoring screen for the gear. Driven by UIKit's
+  the prominent play button at the bottom). The canvas lines up with the
+  bar: the title sits level with the camera cut-out (read from the
+  `.occlusion` reserved region), the window label level with the Start
+  item, and the five-row picker takes the space between. Same on the
+  monitoring screen for the gear. Driven by UIKit's
   `verticalBarEdge` trait, bridged into the environment by
   `VerticalBar.swift`, so every canvas without a vertical bar keeps the
   overlay gear and the full-width Start button unchanged.
