@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.3.0 — 2026-10-04
 
 **Android alarms now ring on time after a snooze** — the "sounds 2 hours
 later when snoozed" report on
