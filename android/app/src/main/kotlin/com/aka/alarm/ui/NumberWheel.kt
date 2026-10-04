@@ -1,17 +1,17 @@
 package com.aka.alarm.ui
 
-import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -22,7 +22,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -33,6 +32,12 @@ import kotlin.math.abs
  * A vertical wheel picker, Compose-native. Matches the iOS [NumberWheel] in row
  * height and selected-row treatment: glass-like translucent pill behind the
  * centered row, numbers above and below faded with distance.
+ *
+ * [visibleRows] is the wheel's *preferred* height. `Modifier.height` is
+ * coerced to the incoming constraints, so when the parent cannot afford that
+ * many rows (landscape phones, split screen) the wheel is simply shorter —
+ * and everything below is written so that still works, see [BoxWithConstraints]
+ * in the body.
  */
 @Composable
 fun NumberWheel(
@@ -44,86 +49,64 @@ fun NumberWheel(
     visibleRows: Int = 5,
     fontSize: Int = 44,
 ) {
-    val configuration = LocalConfiguration.current
-
     val initialIndex = values.indexOf(selection).coerceAtLeast(0)
-
-    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
-
+    // Deliberately `remember`, not `rememberLazyListState` (= rememberSaveable):
+    // the scroll position is *derived* from `selection`, whose owner (the
+    // application-scoped store) outlives the Activity, so after a rotation the
+    // wheel is simply rebuilt on the current selection. A restored index/offset
+    // can only ever disagree with `selection` — and did: saveable entries are
+    // keyed by composition slot, the portrait and landscape layouts put the
+    // wheels in different slots, and an unconsumed stale entry from before the
+    // first rotation was handed back on the way back, moving the selection.
+    val listState = remember(values) { LazyListState(firstVisibleItemIndex = initialIndex) }
     val snapBehavior = rememberSnapFlingBehavior(lazyListState = listState)
 
     val centeredIndex by remember(values) {
         derivedStateOf {
             val info = listState.layoutInfo
-
+            // visibleItemsInfo[i].offset is in scroll coordinates, where
+            // `viewportStartOffset = -beforeContentPadding`. The viewport's
+            // visual centre in *those* coords is the midpoint of start/end —
+            // NOT `viewportSize.height / 2`, which would shift the centre by
+            // the top content padding and produce an N-row offset.
             val viewportCenter = (info.viewportStartOffset + info.viewportEndOffset) / 2f
-
             info.visibleItemsInfo
-                .minByOrNull {abs(it.offset + it.size / 2f - viewportCenter)}
+                .minByOrNull { abs(it.offset + it.size / 2f - viewportCenter) }
                 ?.index ?: initialIndex
         }
     }
 
+    // Emit selection changes when scrolling settles.
     LaunchedEffect(listState.isScrollInProgress, centeredIndex) {
-        if (
-            !listState.isScrollInProgress &&
-            centeredIndex in values.indices
-        ) {
-            val value = values[centeredIndex]
-
-            if (value != selection) {
-                onSelectionChange(value)
-            }
+        if (!listState.isScrollInProgress && centeredIndex in values.indices) {
+            val v = values[centeredIndex]
+            if (v != selection) onSelectionChange(v)
         }
     }
 
-    val totalHeight = rowHeight * visibleRows
-    val centerPadding = rowHeight * ((visibleRows - 1) / 2)
-
-    LaunchedEffect(configuration.orientation) {
-
-        androidx.compose.runtime.withFrameNanos { }
-
-        val target = values.indexOf(selection)
-
-        if (target !in values.indices) {
-            return@LaunchedEffect
-        }
-
-        val item = listState.layoutInfo.visibleItemsInfo
-            .firstOrNull { it.index == target }
-            ?: return@LaunchedEffect
-
-        val info = listState.layoutInfo
-
-        val viewportCenter =
-            (info.viewportStartOffset + info.viewportEndOffset) / 2f
-
-        val itemCenter =
-            item.offset + item.size / 2f
-
-        val delta = itemCenter - viewportCenter
-
-        if (delta != 0f) {
-            listState.scroll {
-                scrollBy(delta)
-            }
-        }
-    }
-
+    // External selection change → animate to that row.
     LaunchedEffect(selection) {
         val target = values.indexOf(selection)
-
-        if (
-            target in values.indices &&
-            target != centeredIndex &&
-            !listState.isScrollInProgress
-        ) {
+        if (target in values.indices && target != centeredIndex && !listState.isScrollInProgress) {
             listState.animateScrollToItem(target)
         }
     }
 
-    Box(modifier = modifier.height(totalHeight)) {
+    BoxWithConstraints(modifier = modifier.height(rowHeight * visibleRows)) {
+        // Content padding is derived from the height the wheel *actually* got,
+        // not from `visibleRows`. With `(height - rowHeight) / 2` on both ends
+        // the list's content start sits exactly at the visual centre whatever
+        // the height, so four things that must agree always do:
+        //   • `initialFirstVisibleItemIndex` lands the selection in the pill,
+        //   • `animateScrollToItem` lands an external change in the pill,
+        //   • the snap fling's rest positions are whole rows (offset 0),
+        //   • the pill, drawn at the Box centre, covers the centred row.
+        // The fixed 2-row padding this replaced assumed the wheel was always
+        // 5 rows tall; in landscape it was not, which left the selected number
+        // half a row off the pill after rotating and let the nearest-to-centre
+        // logic above silently shift the selection by a step (issue #4).
+        val centerPadding = ((maxHeight - rowHeight) / 2).coerceAtLeast(0.dp)
+
         // Glass selection pill behind the centered row.
         Box(
             modifier = Modifier
