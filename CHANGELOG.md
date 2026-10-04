@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+**Set-alarm screen in landscape and on short screens (Android)** — fixes
+[issue #4](https://github.com/seeingred/aka-alarm/issues/4), reported by
+@Biondi-Tommaso, building on their
+[PR #5](https://github.com/seeingred/aka-alarm/pull/5).
+
+- The number wheels derive their content padding from their *actual* height
+  instead of assuming five visible rows. In landscape (or split screen) the
+  wheel is shorter than that, which left the selected number half a row off
+  the highlight pill after rotating — and the nearest-to-centre logic could
+  then silently shift the chosen hour or minute by one step. With the padding
+  tied to the real height, initial positions, snap points and the pill agree
+  in any geometry, so no rotation-specific re-centring is needed. The wheel's
+  scroll position is also no longer saved and restored by Compose — it is
+  rebuilt from the selected value, which the store already owns — because a
+  restored position could only ever disagree with the selection (and did,
+  once portrait and landscape used different layouts).
+- Landscape phones lay the screen out side by side (wheels left, window label
+  and Start button right): stacked, the label and the Start button were
+  pushed off the bottom of the screen. Short portrait screens (16:9 budget
+  phones, split screen) fall back to three-row wheels.
+
 ## 1.2.0 — 2026-08-17
 
 **Store "What's new" copy (paste-ready):**

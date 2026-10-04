@@ -188,72 +188,134 @@ private fun SettingsSheet(store: AlarmStore) {
 
 // MARK: - Set Alarm
 
+/**
+ * Below this content height the five-row wheels, window label and Start
+ * button no longer fit stacked: landscape phones, split screen, and 16:9
+ * budget phones in portrait.
+ */
+private val STACKED_LAYOUT_MIN_HEIGHT = 640.dp
+
 @Composable
 private fun SetAlarmView(store: AlarmStore, onStart: () -> Unit) {
-    Column(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .padding(16.dp)
     ) {
-        Spacer(Modifier.weight(1f))
+        val short = maxHeight < STACKED_LAYOUT_MIN_HEIGHT
+        // Whole rows when height is tight. NumberWheel also copes with being
+        // squeezed to any height (see its padding logic); this just keeps the
+        // wheel an odd number of full rows so it reads as a wheel.
+        val visibleRows = if (short) 3 else 5
 
+        if (short && maxWidth > maxHeight) {
+            // Landscape phone: wheels left, label + Start right. Stacked, the
+            // label and the Start button fell off the bottom of the screen
+            // (issue #4's screenshots).
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    WindowTitle()
+                    Spacer(Modifier.height(16.dp))
+                    WheelPair(store, visibleRows)
+                }
+                Spacer(Modifier.width(24.dp))
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    WindowLabel(store)
+                    Spacer(Modifier.height(32.dp))
+                    StartButton(onStart)
+                }
+            }
+        } else {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Spacer(Modifier.weight(1f))
+                WindowTitle()
+                Spacer(Modifier.height(24.dp))
+                WheelPair(store, visibleRows)
+                Spacer(Modifier.height(24.dp))
+                WindowLabel(store)
+                Spacer(Modifier.weight(1f))
+                StartButton(onStart)
+            }
+        }
+    }
+}
+
+@Composable
+private fun WindowTitle() {
+    Text(
+        text = "Wake-up window",
+        style = MaterialTheme.typography.titleLarge,
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+    )
+}
+
+@Composable
+private fun WheelPair(store: AlarmStore, visibleRows: Int) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        NumberWheel(
+            values = (0..23).toList(),
+            selection = store.selectedHour,
+            onSelectionChange = { store.selectedHour = it },
+            visibleRows = visibleRows,
+            modifier = Modifier.weight(1f),
+        )
         Text(
-            text = "Wake-up window",
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            ":",
+            fontSize = 40.sp,
+            fontWeight = FontWeight.Light,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+            modifier = Modifier.padding(horizontal = 4.dp)
         )
-        Spacer(Modifier.height(24.dp))
-
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            NumberWheel(
-                values = (0..23).toList(),
-                selection = store.selectedHour,
-                onSelectionChange = { store.selectedHour = it },
-                modifier = Modifier.weight(1f),
-            )
-            Text(
-                ":",
-                fontSize = 40.sp,
-                fontWeight = FontWeight.Light,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                modifier = Modifier.padding(horizontal = 4.dp)
-            )
-            NumberWheel(
-                values = listOf(0, 15, 30, 45),
-                selection = store.selectedMinute,
-                onSelectionChange = { store.selectedMinute = it },
-                modifier = Modifier.weight(1f),
-            )
-        }
-        Spacer(Modifier.height(24.dp))
-
-        AutoShrinkText(
-            text = formatWindowLabel(store.selectedHour, store.selectedMinute),
-            fontSize = 56.sp,
-            fontWeight = FontWeight.Thin,
-            color = MaterialTheme.colorScheme.onSurface,
+        NumberWheel(
+            values = listOf(0, 15, 30, 45),
+            selection = store.selectedMinute,
+            onSelectionChange = { store.selectedMinute = it },
+            visibleRows = visibleRows,
+            modifier = Modifier.weight(1f),
         )
+    }
+}
 
-        Spacer(Modifier.weight(1f))
+@Composable
+private fun WindowLabel(store: AlarmStore) {
+    AutoShrinkText(
+        text = formatWindowLabel(store.selectedHour, store.selectedMinute),
+        fontSize = 56.sp,
+        fontWeight = FontWeight.Thin,
+        color = MaterialTheme.colorScheme.onSurface,
+    )
+}
 
-        Button(
-            onClick = onStart,
-            shape = RoundedCornerShape(percent = 50),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.14f),
-                contentColor = MaterialTheme.colorScheme.onSurface,
-            ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .height(56.dp)
-        ) {
-            Text("Start", fontSize = 18.sp)
-        }
+@Composable
+private fun StartButton(onStart: () -> Unit) {
+    Button(
+        onClick = onStart,
+        shape = RoundedCornerShape(percent = 50),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.14f),
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .height(56.dp)
+    ) {
+        Text("Start", fontSize = 18.sp)
     }
 }
 
