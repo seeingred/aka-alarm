@@ -26,6 +26,10 @@ later when snoozed" report on
   a file that has since moved; if the copy ever fails to open, the built-in
   tone plays. The current choice shows as a chip; its × returns to the
   built-in tone.
+- New built-in tone, "Cozy Morning Wake": a gentle one-minute piece, bundled
+  lossless and played uncut on repeat, replaces the synthesized beep on both
+  platforms. The beep stays only as a last-resort fallback if the bundled
+  file ever fails to decode.
 - The one-minute fade-in now rises in equal dB steps instead of equal gain
   steps, on both platforms. Same endpoints (1 % → 100 %), but the first
   half-minute is genuinely quiet; the old curve was at half loudness within

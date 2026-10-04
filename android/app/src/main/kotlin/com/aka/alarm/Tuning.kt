@@ -74,6 +74,8 @@ object Tuning {
     const val ALARM_END_VOLUME: Float = 1.0f
     /** Custom alarm sounds are copied into app storage; cap so a stray album can't fill it. */
     const val MAX_CUSTOM_SOUND_BYTES: Long = 32L * 1024 * 1024
+    /** Display name of the bundled tone (res/raw/alarm_tone.flac, lossless original). */
+    const val BUILT_IN_TONE_NAME = "Cozy Morning Wake"
 
     // Vibration
     val vibrationPulseInterval: Duration = 1500.milliseconds

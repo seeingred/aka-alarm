@@ -6,16 +6,17 @@ import AudioToolbox
 /// `alarmEndVolume` over `alarmFadeDuration` seconds, in equal dB steps so the
 /// first half-minute is genuinely quiet rather than merely starting quiet.
 ///
-/// The sound is either the user's own file (see `AlarmStore.importAlarmSound`),
-/// decoded whole into a looping buffer, or the built-in tone: a procedurally
-/// generated 1-second loop of a 0.5 s three-harmonic beep followed by 0.5 s of
-/// silence, so it self-loops without clicks. If the custom file fails to decode
-/// the built-in tone plays instead — a silent alarm is the one failure this
+/// Sources, in order: the user's own file (see `AlarmStore.importAlarmSound`),
+/// then the built-in tone "Cozy Morning Wake" (`AlarmTone.flac` in the bundle,
+/// a lossless copy of the original, played uncut and repeated) — both decoded
+/// whole into a looping buffer. If neither decodes, a procedurally generated
+/// 1-second three-harmonic beep plays. A silent alarm is the one failure this
 /// class must never have.
 final class AlarmPlayer {
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
-    private var toneBuffer: AVAudioPCMBuffer?
+    private var toneBuffer: AVAudioPCMBuffer?    // decoded bundled tone, cached
+    private var synthBuffer: AVAudioPCMBuffer?   // last-resort beep, cached
     private var fadeTimer: Timer?
     private var vibrationTimer: Timer?
     private var attached = false
@@ -26,10 +27,12 @@ final class AlarmPlayer {
         let buffer: AVAudioPCMBuffer
         if let url, let custom = Self.loadLoop(from: url) {
             buffer = custom
-        } else {
-            if toneBuffer == nil { toneBuffer = makeBeepBuffer() }
-            guard let tone = toneBuffer else { return }
+        } else if let tone = builtInToneBuffer() {
             buffer = tone
+        } else {
+            if synthBuffer == nil { synthBuffer = makeBeepBuffer() }
+            guard let synth = synthBuffer else { return }
+            buffer = synth
         }
 
         // Reconfigure the shared audio session for *loud playback*. MicMonitor uses
@@ -78,10 +81,20 @@ final class AlarmPlayer {
         // Session lifecycle is owned by AlarmStore; do not deactivate here.
     }
 
-    // MARK: Custom sound
+    // MARK: Sources
+
+    private func builtInToneBuffer() -> AVAudioPCMBuffer? {
+        if let toneBuffer { return toneBuffer }
+        guard let url = Bundle.main.url(forResource: "AlarmTone", withExtension: "flac") else {
+            print("AlarmPlayer: AlarmTone.flac missing from the bundle")
+            return nil
+        }
+        toneBuffer = Self.loadLoop(from: url)
+        return toneBuffer
+    }
 
     /// Decodes a whole file into memory (length-capped) so it loops gaplessly.
-    /// Returns nil — and the caller falls back to the tone — if it won't decode.
+    /// Returns nil — and the caller moves to the next fallback — if it won't decode.
     private static func loadLoop(from url: URL) -> AVAudioPCMBuffer? {
         do {
             let file = try AVAudioFile(forReading: url)

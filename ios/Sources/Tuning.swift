@@ -95,8 +95,11 @@ enum Tuning {
     static let alarmEndVolume: Float = 1.0
     /// Custom alarm sounds are copied into app storage; cap so a stray album can't fill it.
     static let maxCustomSoundBytes: Int = 32 * 1024 * 1024
-    /// A custom sound is decoded whole into memory to loop gaplessly; cap its length.
-    static let maxCustomSoundSeconds: Double = 10 * 60
+    /// A sound is decoded whole into memory to loop gaplessly; cap its length.
+    /// Three minutes of stereo 48 kHz float is ~70 MB, the most we want to hold.
+    static let maxCustomSoundSeconds: Double = 3 * 60
+    /// Display name of the bundled tone (Resources/AlarmTone.flac, lossless original).
+    static let builtInToneName = "Cozy Morning Wake"
 
     // MARK: Vibration
     /// Period between vibration pulses while the alarm is firing.

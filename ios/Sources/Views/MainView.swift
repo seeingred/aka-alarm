@@ -342,7 +342,7 @@ struct SensitivitySheet: View {
             HStack(spacing: 8) {
                 Image(systemName: "music.note")
                     .font(.subheadline)
-                Text(store.alarmSoundName ?? "Built-in tone")
+                Text(store.alarmSoundName ?? Tuning.builtInToneName)
                     .font(.subheadline.weight(.medium))
                     .lineLimit(1)
                 if store.alarmSoundName != nil {

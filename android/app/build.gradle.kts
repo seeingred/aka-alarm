@@ -76,6 +76,13 @@ android {
         includeInBundle = false
     }
 
+    // The bundled alarm tone is FLAC (lossless copy of the original). AAPT
+    // compresses extensions it doesn't recognise, and a compressed raw
+    // resource can't be opened as a file descriptor for MediaPlayer.
+    androidResources {
+        noCompress += listOf("flac")
+    }
+
     sourceSets {
         getByName("main") {
             java.srcDirs("src/main/kotlin")

@@ -16,8 +16,9 @@ at an arbitrary moment.
    oversleep.
 5. The alarm fades in over a minute — in equal dB steps, so it stays
    genuinely quiet for the first half — and you wake up gradually rather
-   than panicked. The built-in tone is a soft three-harmonic beep; you can
-   pick one of the phone's own alarm sounds or any audio file instead.
+   than panicked. The built-in tone is "Cozy Morning Wake", a gentle
+   one-minute piece that plays through and repeats; you can pick one of the
+   phone's own alarm sounds (Android) or any audio file instead.
 6. Snooze by **lightly moving the phone** — no fumbling for a button. Each
    snooze picks a random duration between 60 s and 15 min (clamped so it
    never extends past the window). When the remaining window is too short
@@ -95,7 +96,7 @@ ios/                          # native Swift + SwiftUI, iOS 26+
     Tuning.swift              # all tunable constants
     Models/AlarmStore.swift   # alarm state machine
     Audio/MicMonitor.swift    # AVAudioEngine + rolling baseline + spike detection
-    Audio/AlarmPlayer.swift   # procedural tone or custom file, dB-linear fade-up
+    Audio/AlarmPlayer.swift   # bundled tone / custom file (synth fallback), dB-linear fade-up
     Motion/MotionMonitor.swift# CoreMotion-based snooze nudge detection
     Views/MainView.swift      # set-alarm + monitoring screens
     Views/AlarmView.swift     # alarm + snoozing screen
@@ -112,7 +113,7 @@ android/                      # native Kotlin + Jetpack Compose, minSdk 26
       model/AlarmPhase.kt
       model/AlarmStore.kt
       audio/MicMonitor.kt     # AudioRecord (UNPROCESSED) + RMS + baseline ring
-      audio/AlarmPlayer.kt    # AudioTrack tone / MediaPlayer custom file + Vibrator pulses
+      audio/AlarmPlayer.kt    # MediaPlayer bundled tone / custom file (AudioTrack synth fallback) + Vibrator pulses
       audio/CustomAlarmSound.kt # copies + probes the user's chosen sound
       motion/MotionMonitor.kt # SensorManager (TYPE_GYROSCOPE)
       schedule/PhaseAlarm.kt  # exact RTC wakeups for every timed phase transition

@@ -282,7 +282,7 @@ private fun AlarmSoundSection(store: AlarmStore) {
     InputChip(
         selected = true,
         onClick = openSystemPicker,
-        label = { Text(store.alarmSoundName ?: "Built-in tone") },
+        label = { Text(store.alarmSoundName ?: Tuning.BUILT_IN_TONE_NAME) },
         leadingIcon = {
             Icon(
                 Icons.Outlined.MusicNote,

@@ -13,6 +13,7 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.util.Log
+import com.aka.alarm.R
 import com.aka.alarm.Tuning
 import java.io.File
 import kotlin.math.PI
@@ -23,11 +24,11 @@ import kotlin.math.sin
  * Plays the alarm sound with a gradual volume fade-up and pulses the device
  * vibrator alongside it, mirroring the iOS [AlarmPlayer].
  *
- * The sound is either the user's own file (see [CustomAlarmSound]), looped
- * through [MediaPlayer], or the built-in tone: a 1-second loop of 0.5 s of
- * three-harmonic beep (880 / 1320 / 1760 Hz) followed by 0.5 s of silence,
- * synthesised into a static [AudioTrack]. If the custom file fails to open the
- * built-in tone plays instead — an alarm that stays silent is the one failure
+ * Sources, in order: the user's own file (see [CustomAlarmSound]), then the
+ * built-in tone "Cozy Morning Wake" (`res/raw/alarm_tone.flac`, a lossless
+ * copy of the original, played uncut and repeated), both looped through
+ * [MediaPlayer]. If neither opens, a synthesised three-harmonic beep plays
+ * from a static [AudioTrack] — an alarm that stays silent is the one failure
  * mode this class must never have.
  *
  * Volume ramps from [Tuning.ALARM_START_VOLUME] to [Tuning.ALARM_END_VOLUME]
@@ -44,9 +45,13 @@ class AlarmPlayer(private val context: Context) {
 
     fun start(customSound: File? = null) {
         stop()
-        if (customSound == null || !startCustom(customSound)) {
-            startTone()
-        }
+        val started = (customSound != null && startMediaPlayer { it.setDataSource(customSound.absolutePath) }) ||
+            startMediaPlayer { mp ->
+                context.resources.openRawResourceFd(R.raw.alarm_tone).use { fd ->
+                    mp.setDataSource(fd.fileDescriptor, fd.startOffset, fd.length)
+                }
+            }
+        if (!started) startSynthTone()
         startFade()
         startVibration()
     }
@@ -79,11 +84,16 @@ class AlarmPlayer(private val context: Context) {
 
     // MARK: Sources
 
-    private fun startCustom(file: File): Boolean {
+    /**
+     * Looping [MediaPlayer] on the alarm stream fed by [source]; false (and
+     * everything released) if the source can't be opened, so the caller can
+     * move to the next fallback.
+     */
+    private fun startMediaPlayer(source: (MediaPlayer) -> Unit): Boolean {
         val mp = MediaPlayer()
         return try {
             mp.setAudioAttributes(alarmAttributes())
-            mp.setDataSource(file.absolutePath)
+            source(mp)
             mp.isLooping = true
             mp.prepare()
             mp.setVolume(Tuning.ALARM_START_VOLUME, Tuning.ALARM_START_VOLUME)
@@ -91,13 +101,13 @@ class AlarmPlayer(private val context: Context) {
             mediaPlayer = mp
             true
         } catch (e: Exception) {
-            Log.w(TAG, "Custom alarm sound failed, falling back to built-in tone", e)
+            Log.w(TAG, "Alarm sound source failed; trying the next fallback", e)
             mp.release()
             false
         }
     }
 
-    private fun startTone() {
+    private fun startSynthTone() {
         val pcm = buildBeepBuffer()
         val t = AudioTrack.Builder()
             .setAudioAttributes(alarmAttributes())
