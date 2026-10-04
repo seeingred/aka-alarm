@@ -7,20 +7,29 @@ struct AlarmView: View {
 
     var body: some View {
         ZStack {
-            VStack(spacing: 24) {
-                Spacer(minLength: 0)
-
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    Text(context.date, format: .dateTime.hour().minute().second())
-                        .font(.system(size: 72, weight: .thin, design: .rounded))
-                        .monospacedDigit()
+            // Partially open iPhone Duo: clock away from the hinge, the snooze
+            // state and dismiss hint on the near side. See FoldAwareSplit.
+            FoldAwareSplit {
+                VStack(spacing: 24) {
+                    Spacer(minLength: 0)
+                    clock
+                    Spacer(minLength: 0)
                 }
-
-                content
-
-                Spacer(minLength: 0)
-
-                SlideUpHint(label: "Slide up to dismiss")
+            } secondary: {
+                VStack(spacing: 24) {
+                    Spacer(minLength: 0)
+                    content
+                    Spacer(minLength: 0)
+                    SlideUpHint(label: "Slide up to dismiss")
+                }
+            } flat: {
+                VStack(spacing: 24) {
+                    Spacer(minLength: 0)
+                    clock
+                    content
+                    Spacer(minLength: 0)
+                    SlideUpHint(label: "Slide up to dismiss")
+                }
             }
             .padding()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -76,6 +85,14 @@ struct AlarmView: View {
             withAnimation(.linear(duration: Tuning.dimFadeDuration)) {
                 dimOpacity = Tuning.dimEndOpacity
             }
+        }
+    }
+
+    private var clock: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            Text(context.date, format: .dateTime.hour().minute().second())
+                .font(.system(size: 72, weight: .thin, design: .rounded))
+                .monospacedDigit()
         }
     }
 

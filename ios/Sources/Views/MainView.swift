@@ -165,39 +165,35 @@ private struct MonitoringView: View {
 
     var body: some View {
         ZStack {
-            VStack(spacing: 24) {
-                Spacer(minLength: 0)
-
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    Text(context.date, format: .dateTime.hour().minute().second())
-                        .font(.system(size: 64, weight: .thin, design: .rounded))
-                        .monospacedDigit()
+            // On a partially open iPhone Duo (the nightstand "tent" pose) the
+            // clock goes to the segment away from the hinge, readable from the
+            // pillow; the level bar, status and cancel hint stay on the near
+            // side. Everywhere else this is the plain stacked layout.
+            FoldAwareSplit {
+                VStack(spacing: 24) {
+                    Spacer(minLength: 0)
+                    clock
+                    windowRange
+                    Spacer(minLength: 0)
                 }
-
-                if let w = store.phase.window {
-                    Text("\(w.start, format: .dateTime.hour().minute()) – \(w.end, format: .dateTime.hour().minute())")
-                        .font(.title3)
-                        .foregroundStyle(.secondary)
+            } secondary: {
+                VStack(spacing: 24) {
+                    Spacer(minLength: 0)
+                    micBar
+                    status
+                    Spacer(minLength: 0)
+                    SlideUpHint(label: "Slide up to cancel")
                 }
-
-                if store.phase.kind != .armed {
-                    MicLevelView(
-                        currentDB: store.micLevelDB,
-                        baselineDB: store.baselineDB,
-                        thresholdDB: store.baselineDB
-                            + Tuning.spikeThresholdDB(sensitivity: store.sensitivity)
-                    )
-                    .frame(height: 80)
-                    .padding(.horizontal, 32)
+            } flat: {
+                VStack(spacing: 24) {
+                    Spacer(minLength: 0)
+                    clock
+                    windowRange
+                    micBar
+                    status
+                    Spacer(minLength: 0)
+                    SlideUpHint(label: "Slide up to cancel")
                 }
-
-                Text(statusText)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-
-                Spacer(minLength: 0)
-
-                SlideUpHint(label: "Slide up to cancel")
             }
             .padding()
             // Full width regardless of content: in the armed state the level bar
@@ -239,6 +235,43 @@ private struct MonitoringView: View {
         .simultaneousGesture(TapGesture().onEnded { resetDim() })
         .onAppear { startDimFade() }
         .sheet(isPresented: $showSettings) { SensitivitySheet() }
+    }
+
+    private var clock: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            Text(context.date, format: .dateTime.hour().minute().second())
+                .font(.system(size: 64, weight: .thin, design: .rounded))
+                .monospacedDigit()
+        }
+    }
+
+    @ViewBuilder
+    private var windowRange: some View {
+        if let w = store.phase.window {
+            Text("\(w.start, format: .dateTime.hour().minute()) – \(w.end, format: .dateTime.hour().minute())")
+                .font(.title3)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private var micBar: some View {
+        if store.phase.kind != .armed {
+            MicLevelView(
+                currentDB: store.micLevelDB,
+                baselineDB: store.baselineDB,
+                thresholdDB: store.baselineDB
+                    + Tuning.spikeThresholdDB(sensitivity: store.sensitivity)
+            )
+            .frame(height: 80)
+            .padding(.horizontal, 32)
+        }
+    }
+
+    private var status: some View {
+        Text(statusText)
+            .font(.callout)
+            .foregroundStyle(.secondary)
     }
 
     private var statusText: String {
