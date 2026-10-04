@@ -109,11 +109,42 @@ Not applicable. The app has no login.
 
 ## Build upload
 
+Two routes. Both need a **release** Xcode: App Store Connect rejects builds
+made with a beta SDK, so when a beta is installed side by side, make sure
+`DEVELOPER_DIR` is unset (or points at `/Applications/Xcode.app`).
+
+### From the command line (used for 1.3.0)
+
+```sh
+cd ios && xcodegen generate
+xcodebuild -project AkaAlarm.xcodeproj -scheme AkaAlarm -configuration Release \
+  -destination 'generic/platform=iOS' \
+  -archivePath build/Archives/AkaAlarm-X.Y.Z.xcarchive \
+  -allowProvisioningUpdates archive
+xcodebuild -exportArchive \
+  -archivePath build/Archives/AkaAlarm-X.Y.Z.xcarchive \
+  -exportOptionsPlist ExportOptions-AppStore.plist \
+  -exportPath build/Export-X.Y.Z -allowProvisioningUpdates
+```
+
+`ExportOptions-AppStore.plist` (in `ios/`) uses `method:
+app-store-connect` with `destination: upload`, so the second command
+re-signs with the distribution identity and uploads straight to App Store
+Connect using the Apple ID signed into Xcode; `-allowProvisioningUpdates`
+lets it create or refresh the App Store profile. "Upload succeeded" means
+processing has started; the build appears under TestFlight → Builds in
+10–20 min.
+
+### From Xcode
+
 - Configuration: Release.
 - Archive: Xcode → Product → Archive.
 - Distribute: Organizer → Distribute App → App Store Connect → Upload.
-- After upload, give it ~10–20 min for Apple's processing, then it appears under Builds in App Store Connect.
-- Pick the build for the 1.0 release version. Submit.
+
+### Then, in App Store Connect
+
+- Create the new version under App Store → iOS App (+), paste "What's New",
+  pick the processed build, submit for review.
 
 ---
 
