@@ -52,6 +52,7 @@ private struct SetAlarmView: View {
                 canvas(withStart: true)
                     .overlay(alignment: .topTrailing) {
                         SettingsGearButton { showSettings = true }
+                            .gearOverlayPlacement()
                     }
             } else {
                 // iPhone Duo draws a vertical bar along one edge (the outer
@@ -68,14 +69,6 @@ private struct SetAlarmView: View {
                                     Label("Settings", systemImage: "gearshape")
                                 }
                             }
-                            ToolbarItem(placement: .bottomBar) {
-                                Button {
-                                    Task { await store.startAlarm() }
-                                } label: {
-                                    Label("Start", systemImage: "play.fill")
-                                }
-                                .buttonStyle(.borderedProminent)
-                            }
                         }
                 }
             }
@@ -83,23 +76,27 @@ private struct SetAlarmView: View {
         .sheet(isPresented: $showSettings) { SensitivitySheet() }
     }
 
-    /// Height of a standard bar item (the Start button in the vertical bar).
-    private let barItemHeight: CGFloat = 48
 
     /// Layout next to a vertical bar: the title sits level with the camera
-    /// cut-out at the top of the bar, the window label level with the Start
-    /// item at its bottom, and the picker takes everything in between.
+    /// cut-out at the top of the bar, the window label at the bottom with the
+    /// Start button beside it in the bar column, and the picker takes
+    /// everything in between.
+    ///
+    /// Start is our own button rather than a toolbar item: the system parks
+    /// a bottom-bar item 24 pt above the screen edge, 10 pt below where the
+    /// label can sit inside the safe area, and the item can't be moved.
     private var verticalBarCanvas: some View {
         GeometryReader { geo in
             // The cut-out is a reserved region; without one (or on the 27.0
             // SDK) fall back to a band the height of a bar item.
-            let cameraMidY = cameraCenterY(in: geo) ?? barItemHeight / 2
-            let titleBand = max(2 * cameraMidY, barItemHeight)
-            // The bottom bar item ends at the safe-area edge, where this
-            // reader ends, so a band of its height centres the label on it.
-            let labelBand = barItemHeight
+            let cameraMidY = cameraCenterY(in: geo) ?? BarMetrics.itemHeight / 2
+            let titleBand = max(2 * cameraMidY, BarMetrics.itemHeight)
+            let labelBand = BarMetrics.itemHeight
             let middle = geo.size.height - titleBand - labelBand
             let rows = middle >= 5 * rowHeight + 40 ? 5 : 3
+            // The bar column is the safe-area inset on its edge.
+            let leading = verticalBarEdge == .leading
+            let barWidth = leading ? geo.safeAreaInsets.leading : geo.safeAreaInsets.trailing
 
             VStack(spacing: 0) {
                 title
@@ -111,8 +108,22 @@ private struct SetAlarmView: View {
             }
             .frame(maxWidth: 560)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.horizontal)
+            .overlay(alignment: leading ? .bottomLeading : .bottomTrailing) {
+                startBarButton
+                    .padding(leading ? .leading : .trailing, BarMetrics.edgeMargin)
+                    .frame(width: barWidth, height: labelBand,
+                           alignment: leading ? .leading : .trailing)
+                    .offset(x: leading ? -barWidth : barWidth)
+            }
         }
-        .padding(.horizontal)
+    }
+
+    /// Start styled like the gear beside it in the bar: a plain glass circle.
+    private var startBarButton: some View {
+        GlassCircleButton(systemImage: "play.fill", label: "Start") {
+            Task { await store.startAlarm() }
+        }
     }
 
     private func cameraCenterY(in geo: GeometryProxy) -> CGFloat? {
@@ -311,6 +322,7 @@ private struct MonitoringView: View {
             .overlay(alignment: .topTrailing) {
                 if verticalBarEdge == .none {
                     SettingsGearButton { showSettings = true }
+                        .gearOverlayPlacement()
                 }
             }
             .offset(y: dragOffset)
@@ -415,19 +427,63 @@ private struct MonitoringView: View {
 
 // MARK: - Settings
 
-struct SettingsGearButton: View {
+/// Sizes shared by the glass circle controls and the Duo's vertical bar.
+enum BarMetrics {
+    /// A standard bar item; the glass circles match it.
+    static let itemHeight: CGFloat = 48
+    /// `.glass` pads its label by this much per side.
+    static let glassPadding: CGFloat = 7
+    /// The system keeps its vertical-bar items this far from the screen edge
+    /// (measured on the Duo simulator).
+    static let edgeMargin: CGFloat = 24
+}
+
+/// A bar-item-sized glass circle around a symbol: the look of a toolbar
+/// button, usable outside a toolbar.
+struct GlassCircleButton: View {
+    let systemImage: String
+    let label: LocalizedStringKey
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: "gearshape")
-                .font(.system(size: 18, weight: .regular))
-                .foregroundStyle(.secondary)
-                .padding(12)
-                .contentShape(Rectangle())
+            Image(systemName: systemImage)
+                .font(.title3)
+                .foregroundStyle(.primary)
+                .frame(width: BarMetrics.itemHeight - 2 * BarMetrics.glassPadding,
+                       height: BarMetrics.itemHeight - 2 * BarMetrics.glassPadding)
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Settings")
+        .buttonStyle(.glass)
+        .buttonBorderShape(.circle)
+        .accessibilityLabel(label)
+    }
+}
+
+struct SettingsGearButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        GlassCircleButton(systemImage: "gearshape", label: "Settings", action: action)
+    }
+}
+
+extension View {
+    /// Places the gear in the top-trailing corner. On iPhone Duo's inner
+    /// display the status bar's trailing cluster is a circle on the bar
+    /// margin, so a regular-width canvas uses that margin and the gear shares
+    /// the circle's axis; compact phones keep the usual 16 pt.
+    func gearOverlayPlacement() -> some View {
+        modifier(GearOverlayPlacement())
+    }
+}
+
+private struct GearOverlayPlacement: ViewModifier {
+    @Environment(\.horizontalSizeClass) private var sizeClass
+
+    func body(content: Content) -> some View {
+        content
+            .padding(.top, 4)
+            .padding(.trailing, sizeClass == .regular ? BarMetrics.edgeMargin : 16)
     }
 }
 

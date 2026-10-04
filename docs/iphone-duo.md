@@ -187,18 +187,32 @@ pose, outer display 466 × 678 pt:
 - Set-alarm screen takes the three-row stacked layout; title, wheels, window
   label and Start all fit with room to spare.
 - The outer display puts the status items (camera cut-out, clock, radio) in
-  a **vertical bar down the trailing edge**. The gear and Start now live in
-  that bar as standard toolbar items (gear under the status items, Start as
-  the prominent play button at the bottom). The canvas lines up with the
-  bar: the title sits level with the camera cut-out (read from the
-  `.occlusion` reserved region), the window label level with the Start
-  item, and the five-row picker takes the space between. Same on the
+  a **vertical bar down the trailing edge**. The gear lives in that bar as
+  a standard toolbar item; Start is our own glass circle drawn in the bar
+  column, because a system bottom-bar item is parked 24 pt above the screen
+  edge, 10 pt below where the window label can sit, and can't be moved. The
+  canvas lines up with the bar: the title sits level with the camera
+  cut-out (read from the `.occlusion` reserved region), the window label
+  and Start share a centre line at the bottom, and the five-row picker
+  takes the space between. The bar keeps its items 24 pt from the screen
+  edge (`BarMetrics.edgeMargin`); Start uses the same. Same on the
   monitoring screen for the gear. Driven by UIKit's
   `verticalBarEdge` trait, bridged into the environment by
   `VerticalBar.swift`, so every canvas without a vertical bar keeps the
   overlay gear and the full-width Start button unchanged.
 - Settings sheet opens at 75 % of the display and scrolls; the alarm-sound
-  capsule and the "Audio file…" button are reachable.
+  capsule and the "Audio file…" button are reachable. Its bottom-left corner
+  is square: the panel's hinge-side corners are square and iOS 26 sheets
+  make their bottom corners concentric with the display's.
+- The gear is a bar-item-sized glass circle on every canvas now (owner's
+  call after seeing it in the bar). On the inner display the status bar's
+  trailing cluster is a circle on the 24 pt bar margin, so regular-width
+  canvases place the gear on that margin and it shares the circle's axis.
+- Inner display, fully open: in landscape the hinge is reported as an
+  inactive `.division` region, a 40 pt vertical band at the display's centre
+  with 20 pt margins. The clock screens arrange around it exactly as they
+  do when the device is tented (clock on one side, controls on the other);
+  portrait stays the plain stack.
 - Monitoring screen (flat arrangement, no active fold) renders as on any
   phone: clock, window, mic bar with baseline and trigger markers, hint.
 - The inner panel is powered but black while closed, as expected.
@@ -254,12 +268,16 @@ screen (set alarm, settings sheet, armed/monitoring, alarming, snoozing):
 
 | Canvas | Points | How | Result |
 |---|---|---|---|
-| Outer, portrait | 466 × 678 | closed | set alarm, sheet, monitoring ✓ (2026-10-04) |
-| Outer, landscape | 678 × 466 | closed, rotated | pending |
-| Inner, portrait | 669 × 951 | open | pending |
-| Inner, landscape | 951 × 669 | open, rotated | pending |
+| Outer, portrait | 466 × 678 | closed | set alarm, sheet, listening ✓ (2026-10-04) |
+| Outer, landscape | 678 × 466 | closed, rotated | not applicable: the outer display honours our portrait lock |
+| Inner, portrait | 669 × 951 | open | set alarm, listening ✓ |
+| Inner, landscape | 951 × 669 | open, rotated | set alarm (bar layout), listening (split around the inactive hinge) ✓ |
 | Inner, book | 669 × 951 with fold | partially folded, portrait | pending |
-| Inner, tabletop | 951 × 669 with fold | partially folded, landscape | pending |
+| Inner, tabletop | 951 × 669 with fold | partially folded, landscape | listening ✓ (owner, Device Hub) |
+
+Alarm and snooze screens are untested on the Duo: making the alarm fire
+plays the tone through the Mac. Reference captures of the verified states
+live in `screenshots/iphone-duo/` (full-frame, store sizes).
 
 Device Hub's resize mode covers the first four without the pose controls.
 Then on hardware: StandBy in the tent pose, closing the device while armed,

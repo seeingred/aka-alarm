@@ -47,7 +47,10 @@ iOS 27.1 SDK; nothing changes on other iPhones.
   height that the outer display can't fit.
 - On the outer display (and the inner one in landscape) the system draws a
   vertical bar along one edge; the settings gear and the Start button move
-  into it as standard toolbar items, leaving the canvas to the time picker.
+  into it, leaving the canvas to the time picker, with the title level with
+  the camera cut-out and the window value level with Start.
+- The settings gear is now a glass circle on every iPhone, not just in the
+  Duo's bar.
 - When the device is partially open, the monitoring and alarm screens keep
   the clock on the far side of the fold and the controls on the near side,
   so the phone works as a nightstand clock in the tent pose.

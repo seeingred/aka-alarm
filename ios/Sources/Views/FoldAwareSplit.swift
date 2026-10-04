@@ -2,13 +2,18 @@ import SwiftUI
 
 /// Keeps a screen's content clear of iPhone Duo's fold.
 ///
-/// With no active fold — any other iPhone, or a Duo that is closed or fully
-/// open — `flat` is laid out exactly as given, so nothing changes for anyone
-/// else. When the device is partially open, the canvas is split along the
-/// fold's reserved region: `primary` takes the segment farther from the user
-/// (the top in the tabletop/tent pose, the leading side in the book pose) and
-/// `secondary` the nearer, interactive one. That is the displacement pattern
-/// Apple recommends: move only what must move, keep everything reachable.
+/// With no fold — any other iPhone, or a Duo that is closed — `flat` is laid
+/// out exactly as given, so nothing changes for anyone else. When the device
+/// is partially open, the canvas is split along the fold's reserved region:
+/// `primary` takes the segment farther from the user (the top in the
+/// tabletop/tent pose, the leading side in the book pose) and `secondary` the
+/// nearer, interactive one. That is the displacement pattern Apple
+/// recommends: move only what must move, keep everything reachable.
+///
+/// Fully open and wider than tall, the hinge still runs through the middle
+/// of the canvas (vertically, in that orientation), so the same arrangement
+/// is kept around the now inactive fold: clock on the leading half, controls
+/// on the trailing half. Fully open in portrait stays `flat`.
 ///
 /// The reserved-region API arrived with the iOS 27.1 SDK, whose SwiftUICore
 /// module is version 8.0.85 (the 27.0 SDK ships 8.0.84). Gating on the module
@@ -24,7 +29,7 @@ struct FoldAwareSplit<Primary: View, Secondary: View, Flat: View>: View {
         #if canImport(SwiftUICore, _version: 8.0.85)
         if #available(iOS 27.1, *) {
             GeometryReader { proxy in
-                if let fold = proxy.reservedRegions(kind: .division).first(where: \.isActive) {
+                if let fold = arrangingFold(in: proxy) {
                     split(around: fold, in: proxy.size)
                 } else {
                     flat()
@@ -40,6 +45,14 @@ struct FoldAwareSplit<Primary: View, Secondary: View, Flat: View>: View {
     }
 
     #if canImport(SwiftUICore, _version: 8.0.85)
+    @available(iOS 27.1, *)
+    private func arrangingFold(in proxy: GeometryProxy) -> ReservedRegion? {
+        let folds = proxy.reservedRegions(kind: .division, options: .includeInactive)
+        if let active = folds.first(where: \.isActive) { return active }
+        guard proxy.size.width > proxy.size.height else { return nil }
+        return folds.first
+    }
+
     @available(iOS 27.1, *)
     @ViewBuilder
     private func split(around fold: ReservedRegion, in size: CGSize) -> some View {
