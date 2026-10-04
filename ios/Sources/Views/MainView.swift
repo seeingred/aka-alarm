@@ -33,75 +33,115 @@ private struct SetAlarmView: View {
     @State private var showSettings = false
 
     private let minuteOptions = [0, 15, 30, 45]
+    private let rowHeight: CGFloat = 80
+
+    /// Below this much content height the five-row wheels (400 pt), the
+    /// window label and the Start button no longer stack: iPhone Duo's outer
+    /// display, any landscape canvas (the Duo's inner display ignores our
+    /// portrait lock), and split-screen multitasking.
+    private let stackedLayoutMinHeight: CGFloat = 700
 
     var body: some View {
-        VStack(spacing: 24) {
-            Spacer(minLength: 0)
+        // Size-driven, never device-driven (Apple's guidance for iPhone Duo):
+        // wider than tall goes side by side, short canvases get three-row
+        // wheels. Regular iPhones in portrait are unchanged.
+        GeometryReader { geo in
+            let short = geo.size.height < stackedLayoutMinHeight
+            let sideBySide = geo.size.width > geo.size.height
+            let rows = short ? 3 : 5
 
-            Text("Wake-up window")
-                .font(.title2)
-                .foregroundStyle(.secondary)
-
-            HStack(spacing: 0) {
-                NumberWheel(
-                    selection: $store.selectedHour,
-                    values: Array(0..<24),
-                    rowHeight: 80,
-                    fontSize: 44
-                )
-                .frame(maxWidth: .infinity)
-                .background(alignment: .center) {
-                    Color.clear
-                        .glassEffect(in: .capsule)
-                        .frame(height: 80)
-                        .padding(.horizontal, 12)
-                }
-
-                Text(":")
-                    .font(.system(size: 40, weight: .light))
-                    .foregroundStyle(.secondary)
-
-                NumberWheel(
-                    selection: $store.selectedMinute,
-                    values: minuteOptions,
-                    rowHeight: 80,
-                    fontSize: 44
-                )
-                .frame(maxWidth: .infinity)
-                .background(alignment: .center) {
-                    Color.clear
-                        .glassEffect(in: .capsule)
-                        .frame(height: 80)
-                        .padding(.horizontal, 12)
-                }
-            }
-            .frame(height: 400)
-            .padding(.horizontal, 16)
-
-            Text(windowLabel)
-                .font(.system(size: 72, weight: .thin, design: .rounded))
-                .monospacedDigit()
-                .lineLimit(1)
-                .minimumScaleFactor(0.5)
-                .padding(.horizontal, 32)
-
-            Spacer(minLength: 0)
-
-            Button {
-                Task { await store.startAlarm() }
-            } label: {
-                Text("Start")
+            if sideBySide {
+                HStack(spacing: 24) {
+                    VStack(spacing: 16) {
+                        title
+                        wheels(rows: rows)
+                    }
                     .frame(maxWidth: .infinity)
+
+                    VStack(spacing: 32) {
+                        windowLabelText
+                        startButton
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                VStack(spacing: 24) {
+                    Spacer(minLength: 0)
+                    title
+                    wheels(rows: rows)
+                    windowLabelText
+                    Spacer(minLength: 0)
+                    startButton
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .buttonStyle(.glass)
-            .buttonBorderShape(.capsule)
-            .controlSize(.large)
         }
         .padding()
         .overlay(alignment: .topTrailing) {
             SettingsGearButton { showSettings = true }
         }
         .sheet(isPresented: $showSettings) { SensitivitySheet() }
+    }
+
+    private var title: some View {
+        Text("Wake-up window")
+            .font(.title2)
+            .foregroundStyle(.secondary)
+    }
+
+    private func wheels(rows: Int) -> some View {
+        HStack(spacing: 0) {
+            wheel(selection: $store.selectedHour, values: Array(0..<24))
+
+            Text(":")
+                .font(.system(size: 40, weight: .light))
+                .foregroundStyle(.secondary)
+
+            wheel(selection: $store.selectedMinute, values: minuteOptions)
+        }
+        .frame(height: CGFloat(rows) * rowHeight)
+        // On a regular-width canvas (Duo's inner display) the pills would
+        // otherwise stretch to half the screen each.
+        .frame(maxWidth: 520)
+        .padding(.horizontal, 16)
+    }
+
+    private func wheel(selection: Binding<Int>, values: [Int]) -> some View {
+        NumberWheel(
+            selection: selection,
+            values: values,
+            rowHeight: rowHeight,
+            fontSize: 44
+        )
+        .frame(maxWidth: .infinity)
+        .background(alignment: .center) {
+            Color.clear
+                .glassEffect(in: .capsule)
+                .frame(height: rowHeight)
+                .padding(.horizontal, 12)
+        }
+    }
+
+    private var windowLabelText: some View {
+        Text(windowLabel)
+            .font(.system(size: 72, weight: .thin, design: .rounded))
+            .monospacedDigit()
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
+            .padding(.horizontal, 32)
+    }
+
+    private var startButton: some View {
+        Button {
+            Task { await store.startAlarm() }
+        } label: {
+            Text("Start")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.glass)
+        .buttonBorderShape(.capsule)
+        .controlSize(.large)
     }
 
     private var windowLabel: String {
@@ -397,7 +437,10 @@ struct SensitivitySheet: View {
                 store.importAlarmSound(from: url)
             }
         }
-        .presentationDetents([.height(620), .large])
+        // A fraction, not a fixed height: 620 pt is taller than iPhone Duo's
+        // outer display. Three quarters shows all three sections on a regular
+        // iPhone and the sheet scrolls where it can't.
+        .presentationDetents([.fraction(0.75), .large])
     }
 }
 
