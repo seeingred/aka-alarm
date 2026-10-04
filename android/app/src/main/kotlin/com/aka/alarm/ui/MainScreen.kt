@@ -1,11 +1,19 @@
 package com.aka.alarm.ui
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.media.RingtoneManager
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -14,20 +22,28 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
+import androidx.compose.material3.InputChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -47,6 +63,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.IntentCompat
 import com.aka.alarm.Tuning
 import com.aka.alarm.model.AlarmPhase
 import com.aka.alarm.model.AlarmSchedule
@@ -86,7 +103,13 @@ fun MainScreen(store: AlarmStore, onStart: () -> Unit) {
         }
 
         if (showSettings) {
-            ModalBottomSheet(onDismissRequest = { showSettings = false }) {
+            // Three sections are taller than half the screen, and a sheet that
+            // opens half-expanded hides the bottom one behind a drag nobody
+            // expects. Open it at full content height instead.
+            ModalBottomSheet(
+                onDismissRequest = { showSettings = false },
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            ) {
                 SettingsSheet(store)
             }
         }
@@ -100,7 +123,14 @@ private fun SettingsSheet(store: AlarmStore) {
     val micActive = store.phase.kind == AlarmPhase.Kind.MONITORING ||
         store.phase.kind == AlarmPhase.Kind.IN_WINDOW
 
-    Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 40.dp)) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            // Three sections no longer fit a landscape phone's sheet height.
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp)
+            .padding(bottom = 40.dp)
+    ) {
         Text("Sensitivity", style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(4.dp))
         Text(
@@ -183,6 +213,124 @@ private fun SettingsSheet(store: AlarmStore) {
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
             )
         }
+
+        Spacer(Modifier.height(24.dp))
+        AlarmSoundSection(store)
+    }
+}
+
+@Composable
+private fun AlarmSoundSection(store: AlarmStore) {
+    var pickerMissing by remember { mutableStateOf(false) }
+
+    // Two routes to a sound, because they cover different things: the system
+    // picker lists the device's alarm tones (world-readable, no permission),
+    // while a user's own file comes through SAF, whose read grant covers the
+    // copy we take. The ringtone picker's own "Add ringtone" entry would hand
+    // back a media-store URI we can't read without a storage permission.
+    val pickSystemSound = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val uri = result.data?.let {
+            IntentCompat.getParcelableExtra(
+                it, RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java,
+            )
+        }
+        if (uri != null) store.setCustomAlarmSound(uri)
+    }
+    val pickFile = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri -> if (uri != null) store.setCustomAlarmSound(uri) }
+
+    val openSystemPicker = {
+        val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+            putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
+            putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Alarm sound")
+            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, false)
+            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+        }
+        try {
+            pickSystemSound.launch(intent)
+        } catch (_: ActivityNotFoundException) {
+            pickerMissing = true
+        }
+    }
+
+    Text("Alarm sound", style = MaterialTheme.typography.titleMedium)
+    Spacer(Modifier.height(8.dp))
+    // The current pick as a chip: a value token rather than another line of
+    // text. Tapping it opens the system picker; the × on a custom sound is
+    // the standard "remove" affordance and returns to the built-in tone.
+    val removeIcon: (@Composable () -> Unit)? = store.alarmSoundName?.let {
+        {
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clickable(onClickLabel = "Use the built-in tone") {
+                        store.clearCustomAlarmSound()
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Outlined.Close,
+                    contentDescription = "Use the built-in tone",
+                    modifier = Modifier.size(InputChipDefaults.IconSize),
+                )
+            }
+        }
+    }
+    InputChip(
+        selected = true,
+        onClick = openSystemPicker,
+        label = { Text(store.alarmSoundName ?: "Built-in tone") },
+        leadingIcon = {
+            Icon(
+                Icons.Outlined.MusicNote,
+                contentDescription = null,
+                modifier = Modifier.size(InputChipDefaults.IconSize),
+            )
+        },
+        trailingIcon = removeIcon,
+    )
+    Spacer(Modifier.height(4.dp))
+    Text(
+        "Whichever you pick fades in from silence over a minute.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+    )
+    val problem = store.alarmSoundError
+        ?: if (pickerMissing) "This device has no sound picker; choose an audio file instead." else null
+    if (problem != null) {
+        Spacer(Modifier.height(4.dp))
+        Text(
+            problem,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+        )
+    }
+    Spacer(Modifier.height(12.dp))
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        SheetButton("System sounds…", Modifier.weight(1f)) { openSystemPicker() }
+        SheetButton("Audio file…", Modifier.weight(1f)) {
+            pickFile.launch(arrayOf("audio/*"))
+        }
+    }
+}
+
+/** Pill button in the Start button's translucent style, sized for the sheet. */
+@Composable
+private fun SheetButton(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        shape = RoundedCornerShape(percent = 50),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        ),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+        modifier = modifier,
+    ) {
+        Text(label, style = MaterialTheme.typography.labelLarge)
     }
 }
 

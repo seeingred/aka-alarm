@@ -64,8 +64,16 @@ object Tuning {
 
     // Alarm tone
     val alarmFadeDuration: Duration = 60.seconds
+    /**
+     * The fade is perceptually linear — equal steps in dB from −40 dB (1 %) to
+     * 0 dB (100 %). A gain-linear ramp between the same endpoints sounds
+     * front-loaded (roughly half loudness within ten seconds), which is why
+     * users asked for the "gradual" start the app nominally had (issue #2).
+     */
     const val ALARM_START_VOLUME: Float = 0.01f
     const val ALARM_END_VOLUME: Float = 1.0f
+    /** Custom alarm sounds are copied into app storage; cap so a stray album can't fill it. */
+    const val MAX_CUSTOM_SOUND_BYTES: Long = 32L * 1024 * 1024
 
     // Vibration
     val vibrationPulseInterval: Duration = 1500.milliseconds

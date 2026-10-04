@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableFloatStateOf
@@ -14,6 +15,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import com.aka.alarm.Tuning
 import com.aka.alarm.audio.AlarmPlayer
+import com.aka.alarm.audio.CustomAlarmSound
 import com.aka.alarm.audio.MicMonitor
 import com.aka.alarm.motion.MotionMonitor
 import com.aka.alarm.schedule.PhaseAlarm
@@ -26,6 +28,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.Calendar
 import kotlin.random.Random
 
@@ -64,6 +67,14 @@ class AlarmStore(private val app: Application) {
     var activationLeadMinutes by mutableIntStateOf(Tuning.DEFAULT_ACTIVATION_LEAD_MINUTES)
         private set
 
+    /** Display name of the user's own alarm sound, or null for the built-in tone. */
+    var alarmSoundName by mutableStateOf<String?>(null)
+        private set
+
+    /** Why the last sound pick was rejected, for the settings sheet; null when fine. */
+    var alarmSoundError by mutableStateOf<String?>(null)
+        private set
+
     var micPermissionDenied by mutableStateOf(false)
 
     private val mic = MicMonitor().apply {
@@ -75,6 +86,7 @@ class AlarmStore(private val app: Application) {
         onSnoozeNudge = { handleNudge() }
     }
     private val player = AlarmPlayer(app)
+    private val customSound = CustomAlarmSound(app)
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var phaseJob: Job? = null
@@ -101,6 +113,40 @@ class AlarmStore(private val app: Application) {
         } else {
             Tuning.DEFAULT_ACTIVATION_LEAD_MINUTES
         }
+        // A remembered name whose file is gone (storage cleared) falls back to the tone.
+        alarmSoundName = prefs.getString(KEY_SOUND_NAME, null)
+            ?.takeIf { customSound.current() != null }
+    }
+
+    /**
+     * Copies the picked sound into app storage (off the main thread) and makes
+     * it the alarm sound. Rejections — unreadable, undecodable, over the size
+     * cap — surface through [alarmSoundError] and keep the previous choice.
+     */
+    fun setCustomAlarmSound(uri: Uri) {
+        scope.launch {
+            withContext(Dispatchers.IO) { customSound.import(uri) }
+                .onSuccess { name ->
+                    alarmSoundName = name
+                    alarmSoundError = null
+                    prefs.edit { putString(KEY_SOUND_NAME, name) }
+                }
+                .onFailure { e ->
+                    alarmSoundError = if (e is CustomAlarmSound.TooLargeException) {
+                        "That file is larger than " +
+                            "${Tuning.MAX_CUSTOM_SOUND_BYTES / (1024 * 1024)} MB."
+                    } else {
+                        "Couldn't play that file, so the alarm sound is unchanged."
+                    }
+                }
+        }
+    }
+
+    fun clearCustomAlarmSound() {
+        customSound.clear()
+        alarmSoundName = null
+        alarmSoundError = null
+        prefs.edit { remove(KEY_SOUND_NAME) }
     }
 
     /**
@@ -164,6 +210,7 @@ class AlarmStore(private val app: Application) {
         const val KEY_MINUTE = "selectedMinute"
         const val KEY_SENSITIVITY = "sensitivity"
         const val KEY_ACTIVATION_LEAD = "activationLeadMinutes"
+        const val KEY_SOUND_NAME = "alarmSoundName"
     }
 
     fun cancelAlarm() {
@@ -279,7 +326,7 @@ class AlarmStore(private val app: Application) {
             is AlarmPhase.Alarming -> {
                 mic.stop()
                 motion.start()
-                player.start()
+                player.start(customSound.current())
             }
             is AlarmPhase.Snoozing -> {
                 motion.stop()
