@@ -54,10 +54,10 @@
             android:foregroundServiceType="microphone" />
 
         <receiver
-            android:name=".baseline.BaselineStartReceiver"
+            android:name=".schedule.PhaseAlarmReceiver"
             android:exported="false">
             <intent-filter>
-                <action android:name="com.aka.alarm.action.BASELINE_START" />
+                <action android:name="com.aka.alarm.action.PHASE_TRANSITION" />
             </intent-filter>
         </receiver>
     </application>

@@ -13,11 +13,11 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import com.aka.alarm.Tuning
-import com.aka.alarm.baseline.BaselineStartAlarm
-import com.aka.alarm.baseline.BaselineStartAlarmScheduler
 import com.aka.alarm.audio.AlarmPlayer
 import com.aka.alarm.audio.MicMonitor
 import com.aka.alarm.motion.MotionMonitor
+import com.aka.alarm.schedule.PhaseAlarm
+import com.aka.alarm.schedule.PhaseAlarmScheduler
 import com.aka.alarm.service.AlarmService
 import com.aka.alarm.service.AlarmServiceLifecycle
 import kotlinx.coroutines.CoroutineScope
@@ -78,7 +78,7 @@ class AlarmStore(private val app: Application) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var phaseJob: Job? = null
-    private val baselineAlarm = BaselineStartAlarmScheduler(app)
+    private val phaseAlarm = PhaseAlarmScheduler(app)
 
     private val prefs: SharedPreferences =
         app.getSharedPreferences("akaalarm", Context.MODE_PRIVATE)
@@ -139,13 +139,16 @@ class AlarmStore(private val app: Application) {
     }
 
     /**
-     * Self-heal on app foreground: if the process slept through the baseline
-     * wakeup (dropped exact alarm, stalled fallback timer), catch up now.
+     * Self-heal on app foreground: if the process slept through a timed
+     * transition (dropped exact alarm, stalled fallback timer), catch up now.
+     * Chained, because one long sleep can skip several — Armed past the window
+     * start goes Monitoring → InWindow, a snooze past its deadline goes Alarming.
      */
     fun recheckPhase(now: Long = System.currentTimeMillis()) {
-        val p = phase as? AlarmPhase.Armed ?: return
-        if (now >= AlarmSchedule.baselineStartMillis(p.start, activationLeadMinutes)) {
-            transition(AlarmSchedule.initialPhase(now, p.start, p.end, activationLeadMinutes))
+        repeat(AlarmPhase.Kind.entries.size) {
+            val due = PhaseAlarm.requestFor(phase, activationLeadMinutes) ?: return
+            if (now < due.fireAtMillis) return
+            transition(PhaseAlarm.nextPhase(phase) ?: return)
         }
     }
 
@@ -167,23 +170,15 @@ class AlarmStore(private val app: Application) {
         transition(AlarmPhase.Idle)
     }
 
-    /** Called by [com.aka.alarm.baseline.BaselineStartReceiver] after an exact baseline wakeup. */
-    internal fun onBaselineStartAlarmFired(
-        windowStartMillis: Long,
-        windowEndMillis: Long,
-        baselineAtMillis: Long,
-    ) {
-        if (!BaselineStartAlarm.shouldTransitionToMonitoring(
-                phase,
-                windowStartMillis,
-                windowEndMillis,
-                baselineAtMillis,
-                activationLeadMinutes,
-            )
-        ) {
-            return
-        }
-        transition(AlarmPhase.Monitoring(windowStartMillis, windowEndMillis))
+    /**
+     * Delivery point for a timed transition, from either the exact wakeup
+     * ([com.aka.alarm.schedule.PhaseAlarmReceiver]) or the in-process fallback.
+     * Validated against the current phase, so a stale request — the phase moved
+     * on, the user cancelled, the activation lead was re-tuned — is ignored.
+     */
+    internal fun onPhaseAlarmFired(request: PhaseAlarm.Request) {
+        val next = PhaseAlarm.transitionFor(phase, request, activationLeadMinutes) ?: return
+        transition(next)
     }
 
     // -----------------------------------------------------------------------
@@ -247,8 +242,8 @@ class AlarmStore(private val app: Application) {
     private fun transition(next: AlarmPhase) {
         phaseJob?.cancel()
         phaseJob = null
-        // Drop any pending baseline exact alarm; re-scheduled below if still Armed.
-        baselineAlarm.cancel()
+        // Drop the pending timed transition; re-armed below for the new phase.
+        phaseAlarm.cancel()
 
         val current = phase
 
@@ -268,44 +263,18 @@ class AlarmStore(private val app: Application) {
                 player.stop()
                 micLevelDb = Tuning.DB_FLOOR
                 baselineDb = Tuning.DB_FLOOR
-                // Exact alarm survives Doze; in-process delay does not (see BaselineStartAlarm).
-                baselineAlarm.schedule(
-                    BaselineStartAlarm.requestFrom(next, activationLeadMinutes)
-                )
-                // Belt-and-braces: if the AlarmManager wakeup is dropped or denied
-                // (OEM battery managers, revoked exact-alarm permission), this
-                // in-process timer still fires whenever the CPU is next awake, and
-                // recheckPhase() catches up on app foreground. Without a fallback a
-                // single dropped broadcast would mean the alarm never rings.
-                scheduleTransition(
-                    AlarmSchedule.baselineStartMillis(next.start, activationLeadMinutes)
-                ) {
-                    (phase as? AlarmPhase.Armed)?.let {
-                        transition(AlarmPhase.Monitoring(it.start, it.end))
-                    }
-                }
             }
             is AlarmPhase.Monitoring -> {
                 if (!mic.isRunning) mic.start()
                 mic.spikeDetectionEnabled = false
                 motion.stop()
                 player.stop()
-                scheduleTransition(next.start) {
-                    (phase as? AlarmPhase.Monitoring)?.let {
-                        transition(AlarmPhase.InWindow(it.start, it.end))
-                    }
-                }
             }
             is AlarmPhase.InWindow -> {
                 if (!mic.isRunning) mic.start()
                 mic.spikeDetectionEnabled = true
                 motion.stop()
                 player.stop()
-                scheduleTransition(next.end) {
-                    (phase as? AlarmPhase.InWindow)?.let {
-                        transition(AlarmPhase.Alarming(it.end))
-                    }
-                }
             }
             is AlarmPhase.Alarming -> {
                 mic.stop()
@@ -315,13 +284,10 @@ class AlarmStore(private val app: Application) {
             is AlarmPhase.Snoozing -> {
                 motion.stop()
                 player.stop()
-                scheduleTransition(next.until) {
-                    (phase as? AlarmPhase.Snoozing)?.let {
-                        transition(AlarmPhase.Alarming(it.end))
-                    }
-                }
             }
         }
+
+        armTimedTransition(next)
 
         // Service follows the phase so the persistent notification keeps the process
         // alive through screen-off / app-backgrounded; mic work is deferred separately.
@@ -334,11 +300,29 @@ class AlarmStore(private val app: Application) {
         }
     }
 
-    private fun scheduleTransition(targetEpochMillis: Long, action: () -> Unit) {
-        val delayMs = (targetEpochMillis - System.currentTimeMillis()).coerceAtLeast(10)
+    /**
+     * Every timed transition (Armed → Monitoring, Monitoring → InWindow,
+     * InWindow → Alarming, Snoozing → Alarming) is armed twice.
+     *
+     * The exact RTC wakeup alarm is what actually works overnight: coroutine
+     * `delay()` runs on the uptime clock, which stops while the CPU deep-sleeps,
+     * and nothing holds the CPU awake while Armed or Snoozing (mic, player and
+     * motion sensor are all off) — a 5-minute snooze could ring hours late, when
+     * something else happened to wake the phone (issue #2).
+     *
+     * The in-process timer is the fallback for a dropped or denied alarm (OEM
+     * battery managers, revoked exact-alarm permission): it fires whenever the
+     * CPU is next awake, and [recheckPhase] catches up on app foreground. Both
+     * paths deliver the same [PhaseAlarm.Request] through [onPhaseAlarmFired],
+     * so whichever comes second is rejected as stale.
+     */
+    private fun armTimedTransition(phase: AlarmPhase) {
+        val request = PhaseAlarm.requestFor(phase, activationLeadMinutes) ?: return
+        phaseAlarm.schedule(request)
+        val delayMs = (request.fireAtMillis - System.currentTimeMillis()).coerceAtLeast(10)
         phaseJob = scope.launch {
             delay(delayMs)
-            action()
+            onPhaseAlarmFired(request)
         }
     }
 }
