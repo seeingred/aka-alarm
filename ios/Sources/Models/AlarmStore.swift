@@ -70,6 +70,11 @@ final class AlarmStore: ObservableObject {
     }
     @Published var micPermissionDenied: Bool = false
 
+    /// Display name of the user's own alarm sound, or nil for the built-in tone.
+    @Published private(set) var alarmSoundName: String?
+    /// Why the last sound pick was rejected, for the settings sheet; nil when fine.
+    @Published private(set) var alarmSoundError: String?
+
     private let mic = MicMonitor()
     private let motion = MotionMonitor()
     private let player = AlarmPlayer()
@@ -91,6 +96,11 @@ final class AlarmStore: ObservableObject {
         self.activationLeadMinutes = Tuning.activationLeadOptionsMinutes.contains(lead)
             ? lead
             : Tuning.defaultActivationLeadMinutes
+
+        // A remembered name whose file is gone (storage cleared) falls back to the tone.
+        self.alarmSoundName = Self.customSoundURL() == nil
+            ? nil
+            : UserDefaults.standard.string(forKey: Self.kAlarmSoundName)
 
         // didSet doesn't fire during init — push the loaded value explicitly.
         mic.spikeThresholdDB = Tuning.spikeThresholdDB(sensitivity: self.sensitivity)
@@ -174,6 +184,8 @@ final class AlarmStore: ObservableObject {
     private static let kSelectedMinute = "akaalarm.selectedMinute"
     private static let kSensitivity = "akaalarm.sensitivity"
     private static let kActivationLead = "akaalarm.activationLeadMinutes"
+    private static let kAlarmSoundName = "akaalarm.alarmSoundName"
+    private static let kAlarmSoundFile = "akaalarm.alarmSoundFile"
 
     private func persistSelection() {
         UserDefaults.standard.set(selectedHour, forKey: Self.kSelectedHour)
@@ -192,6 +204,76 @@ final class AlarmStore: ObservableObject {
 
     func cancelAlarm() {
         transition(to: .idle)
+    }
+
+    // MARK: Alarm sound
+
+    private static let soundDirectory: URL = {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let dir = base.appendingPathComponent("AlarmSound", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }()
+
+    /// The current custom sound file, or nil to use the built-in tone.
+    private static func customSoundURL() -> URL? {
+        guard let name = UserDefaults.standard.string(forKey: kAlarmSoundFile) else { return nil }
+        let url = soundDirectory.appendingPathComponent(name)
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
+    /// Copies the picked file into app storage and verifies it decodes. A copy,
+    /// not a bookmark: playback at 7 a.m. must not depend on a security-scoped
+    /// grant or on a file the user has since moved. Rejections — too large,
+    /// unreadable, undecodable — surface through `alarmSoundError` and keep the
+    /// previous choice. Mirrors Android's `CustomAlarmSound`.
+    func importAlarmSound(from picked: URL) {
+        let scoped = picked.startAccessingSecurityScopedResource()
+        defer { if scoped { picked.stopAccessingSecurityScopedResource() } }
+
+        let size = (try? picked.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        if size > Tuning.maxCustomSoundBytes {
+            alarmSoundError = "That file is larger than \(Tuning.maxCustomSoundBytes / (1024 * 1024)) MB."
+            return
+        }
+
+        let ext = picked.pathExtension.isEmpty ? "audio" : picked.pathExtension
+        let fileName = "alarm_sound.\(ext)"
+        let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("alarm_sound_import.\(ext)")
+        let dest = Self.soundDirectory.appendingPathComponent(fileName)
+        do {
+            try? FileManager.default.removeItem(at: tmp)
+            try FileManager.default.copyItem(at: picked, to: tmp)
+            // Probe with the same decoder the player uses.
+            let probe = try AVAudioFile(forReading: tmp)
+            guard probe.length > 0 else { throw CocoaError(.fileReadCorruptFile) }
+            removeCustomSoundFiles()
+            try FileManager.default.moveItem(at: tmp, to: dest)
+
+            let name = picked.deletingPathExtension().lastPathComponent
+            UserDefaults.standard.set(fileName, forKey: Self.kAlarmSoundFile)
+            UserDefaults.standard.set(name, forKey: Self.kAlarmSoundName)
+            alarmSoundName = name
+            alarmSoundError = nil
+        } catch {
+            try? FileManager.default.removeItem(at: tmp)
+            print("Alarm sound import failed: \(error)")
+            alarmSoundError = "Couldn't play that file, so the alarm sound is unchanged."
+        }
+    }
+
+    func clearCustomAlarmSound() {
+        removeCustomSoundFiles()
+        UserDefaults.standard.removeObject(forKey: Self.kAlarmSoundFile)
+        UserDefaults.standard.removeObject(forKey: Self.kAlarmSoundName)
+        alarmSoundName = nil
+        alarmSoundError = nil
+    }
+
+    private func removeCustomSoundFiles() {
+        let fm = FileManager.default
+        (try? fm.contentsOfDirectory(at: Self.soundDirectory, includingPropertiesForKeys: nil))?
+            .forEach { try? fm.removeItem(at: $0) }
     }
 
     /// Snap the pickers to the wake window that currently contains "now"
@@ -326,7 +408,7 @@ final class AlarmStore: ObservableObject {
         case .alarming:
             mic.stop()
             motion.start()
-            player.start()
+            player.start(customSound: Self.customSoundURL())
 
         case .snoozing(let until, _):
             motion.stop()

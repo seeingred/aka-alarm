@@ -2,23 +2,35 @@ import Foundation
 import AVFoundation
 import AudioToolbox
 
-/// Plays the alarm tone with a gradual volume fade-up from `alarmStartVolume` to
-/// `alarmEndVolume` over `alarmFadeDuration` seconds. The tone is generated
-/// procedurally as a 1-second loop: a 0.5 s dual-frequency beep followed by 0.5 s of
-/// silence, so it self-loops without clicks.
+/// Plays the alarm sound with a gradual volume fade-up from `alarmStartVolume` to
+/// `alarmEndVolume` over `alarmFadeDuration` seconds, in equal dB steps so the
+/// first half-minute is genuinely quiet rather than merely starting quiet.
+///
+/// The sound is either the user's own file (see `AlarmStore.importAlarmSound`),
+/// decoded whole into a looping buffer, or the built-in tone: a procedurally
+/// generated 1-second loop of a 0.5 s three-harmonic beep followed by 0.5 s of
+/// silence, so it self-loops without clicks. If the custom file fails to decode
+/// the built-in tone plays instead — a silent alarm is the one failure this
+/// class must never have.
 final class AlarmPlayer {
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
-    private var buffer: AVAudioPCMBuffer?
+    private var toneBuffer: AVAudioPCMBuffer?
     private var fadeTimer: Timer?
     private var vibrationTimer: Timer?
-    private var connected = false
+    private var attached = false
 
-    func start() {
-        if buffer == nil {
-            buffer = makeBeepBuffer()
+    func start(customSound url: URL? = nil) {
+        stop()
+
+        let buffer: AVAudioPCMBuffer
+        if let url, let custom = Self.loadLoop(from: url) {
+            buffer = custom
+        } else {
+            if toneBuffer == nil { toneBuffer = makeBeepBuffer() }
+            guard let tone = toneBuffer else { return }
+            buffer = tone
         }
-        guard let buffer else { return }
 
         // Reconfigure the shared audio session for *loud playback*. MicMonitor uses
         // `.measurement` mode which keeps mic input clean but attenuates output
@@ -32,11 +44,15 @@ final class AlarmPlayer {
             print("AlarmPlayer session setup failed: \(error)")
         }
 
-        if !connected {
+        if !attached {
             engine.attach(player)
-            engine.connect(player, to: engine.mainMixerNode, format: buffer.format)
-            connected = true
+            attached = true
         }
+        // (Re)connect in this buffer's format: a custom file is typically stereo
+        // 48 kHz where the built-in tone is mono 44.1 kHz. The engine is stopped
+        // here (see stop()), so rewiring is safe.
+        engine.disconnectNodeOutput(player)
+        engine.connect(player, to: engine.mainMixerNode, format: buffer.format)
 
         do {
             if !engine.isRunning { try engine.start() }
@@ -62,6 +78,29 @@ final class AlarmPlayer {
         // Session lifecycle is owned by AlarmStore; do not deactivate here.
     }
 
+    // MARK: Custom sound
+
+    /// Decodes a whole file into memory (length-capped) so it loops gaplessly.
+    /// Returns nil — and the caller falls back to the tone — if it won't decode.
+    private static func loadLoop(from url: URL) -> AVAudioPCMBuffer? {
+        do {
+            let file = try AVAudioFile(forReading: url)
+            let format = file.processingFormat
+            let cap = AVAudioFramePosition(format.sampleRate * Tuning.maxCustomSoundSeconds)
+            let frames = AVAudioFrameCount(min(file.length, cap))
+            guard frames > 0,
+                  let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames)
+            else { return nil }
+            try file.read(into: buffer, frameCount: frames)
+            return buffer.frameLength > 0 ? buffer : nil
+        } catch {
+            print("AlarmPlayer: custom sound failed (\(error)); using the built-in tone")
+            return nil
+        }
+    }
+
+    // MARK: Vibration
+
     private func startVibration() {
         vibrationTimer?.invalidate()
         // Fire one pulse immediately so the buzz lines up with audio start.
@@ -73,20 +112,29 @@ final class AlarmPlayer {
         }
     }
 
+    // MARK: Fade
+
     private func startFade() {
         let steps = 60
         let stepInterval = Tuning.alarmFadeDuration / Double(steps)
-        let delta = (Tuning.alarmEndVolume - Tuning.alarmStartVolume) / Float(steps)
+        // Exponential in gain = linear in dB. With 0.01 → 1.0 that is −40 dB → 0 dB:
+        // −20 dB at the half-way mark, where a linear ramp would already be at −6 dB.
+        let ratio = Tuning.alarmEndVolume / Tuning.alarmStartVolume
         var stepIndex = 0
         fadeTimer?.invalidate()
         fadeTimer = Timer.scheduledTimer(withTimeInterval: stepInterval, repeats: true) { [weak self] timer in
             guard let self else { timer.invalidate(); return }
             stepIndex += 1
-            let v = min(Tuning.alarmEndVolume, Tuning.alarmStartVolume + delta * Float(stepIndex))
+            let v = min(
+                Tuning.alarmEndVolume,
+                Tuning.alarmStartVolume * powf(ratio, Float(stepIndex) / Float(steps))
+            )
             self.player.volume = v
             if stepIndex >= steps { timer.invalidate() }
         }
     }
+
+    // MARK: Tone synthesis
 
     private func makeBeepBuffer() -> AVAudioPCMBuffer? {
         let sampleRate: Double = 44100

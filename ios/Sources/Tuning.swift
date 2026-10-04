@@ -87,8 +87,16 @@ enum Tuning {
 
     // MARK: Alarm tone
     static let alarmFadeDuration: TimeInterval = 60
+    /// The fade is perceptually linear — equal steps in dB from −40 dB (1 %) to
+    /// 0 dB (100 %). A gain-linear ramp between the same endpoints sounds
+    /// front-loaded (roughly half loudness within ten seconds), which is why
+    /// users asked for the "gradual" start the app nominally had (issue #2).
     static let alarmStartVolume: Float = 0.01
     static let alarmEndVolume: Float = 1.0
+    /// Custom alarm sounds are copied into app storage; cap so a stray album can't fill it.
+    static let maxCustomSoundBytes: Int = 32 * 1024 * 1024
+    /// A custom sound is decoded whole into memory to loop gaplessly; cap its length.
+    static let maxCustomSoundSeconds: Double = 10 * 60
 
     // MARK: Vibration
     /// Period between vibration pulses while the alarm is firing.

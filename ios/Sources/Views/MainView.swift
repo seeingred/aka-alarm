@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 struct MainView: View {
     @EnvironmentObject private var store: AlarmStore
@@ -252,12 +253,14 @@ struct SettingsGearButton: View {
 
 struct SensitivitySheet: View {
     @EnvironmentObject private var store: AlarmStore
+    @State private var showSoundImporter = false
 
     private var micActive: Bool {
         store.phase.kind == .monitoring || store.phase.kind == .inWindow
     }
 
     var body: some View {
+        ScrollView {
         VStack(alignment: .leading, spacing: 12) {
             Text("Sensitivity")
                 .font(.headline)
@@ -329,10 +332,72 @@ struct SensitivitySheet: View {
             }
             .font(.caption2)
             .foregroundStyle(.secondary)
+
+            Text("Alarm sound")
+                .font(.headline)
+                .padding(.top, 12)
+            // The current pick as a capsule token, mirroring Android's chip:
+            // tap it to choose a file; the × on a custom sound returns to the
+            // built-in tone.
+            HStack(spacing: 8) {
+                Image(systemName: "music.note")
+                    .font(.subheadline)
+                Text(store.alarmSoundName ?? "Built-in tone")
+                    .font(.subheadline.weight(.medium))
+                    .lineLimit(1)
+                if store.alarmSoundName != nil {
+                    Button {
+                        store.clearCustomAlarmSound()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.caption.weight(.bold))
+                            .padding(4)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Use the built-in tone")
+                }
+            }
+            .padding(.leading, 14)
+            .padding(.trailing, store.alarmSoundName == nil ? 14 : 8)
+            .padding(.vertical, 8)
+            .glassEffect(in: .capsule)
+            .contentShape(Capsule())
+            .onTapGesture { showSoundImporter = true }
+
+            Text("Whichever you pick fades in from silence over a minute.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            if let problem = store.alarmSoundError {
+                Text(problem)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+            }
+            // iOS has no picker for the system's own alarm tones, so the
+            // user's files (Files app, iCloud Drive, downloads) are the one
+            // source here — same glass capsule as the Start button.
+            Button {
+                showSoundImporter = true
+            } label: {
+                Text("Audio file…")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.capsule)
+            .padding(.top, 4)
         }
         .padding(24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .presentationDetents([.height(440)])
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .fileImporter(
+            isPresented: $showSoundImporter,
+            allowedContentTypes: [.audio]
+        ) { result in
+            if case .success(let url) = result {
+                store.importAlarmSound(from: url)
+            }
+        }
+        .presentationDetents([.height(620), .large])
     }
 }
 
