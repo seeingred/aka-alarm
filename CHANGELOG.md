@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+**Android alarms now ring on time after a snooze** — the "sounds 2 hours
+later when snoozed" report on
+[issue #2](https://github.com/seeingred/aka-alarm/issues/2).
+
+- Every timed transition (mic activation, window start, window end, and
+  snooze end) is now armed as an exact `RTC_WAKEUP` alarm, not only the mic
+  activation that 1.2.0 introduced. The old in-process timers ran on the
+  uptime clock, which stops when the CPU deep-sleeps, and during a snooze
+  nothing keeps the CPU awake — so a 1–15 minute snooze could ring whenever
+  the phone next happened to wake up. The timers remain as a fallback for a
+  dropped or denied alarm, and the foreground catch-up now chains through
+  every skipped transition.
+
+**Custom alarm sound, and a fade-in you can actually hear (iOS + Android)**
+— also from issue #2.
+
+- New "Alarm sound" section in settings. Android: pick one of the phone's
+  own alarm tones through the system picker, or any audio file. iOS: pick any
+  audio file from the Files app (iOS has no picker for its system tones).
+  Either way the pick is copied into the app's storage and test-decoded
+  before it is accepted, so the alarm never depends on a permission grant or
+  a file that has since moved; if the copy ever fails to open, the built-in
+  tone plays. The current choice shows as a chip; its × returns to the
+  built-in tone.
+- The one-minute fade-in now rises in equal dB steps instead of equal gain
+  steps, on both platforms. Same endpoints (1 % → 100 %), but the first
+  half-minute is genuinely quiet; the old curve was at half loudness within
+  ten seconds.
+- The settings sheet opens at full height and scrolls (Android) / grows to
+  fit and scrolls (iOS).
+
 **Set-alarm screen in landscape and on short screens (Android)** — fixes
 [issue #4](https://github.com/seeingred/aka-alarm/issues/4), reported by
 @Biondi-Tommaso, building on their

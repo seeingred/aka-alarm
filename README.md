@@ -14,8 +14,10 @@ at an arbitrary moment.
    the duvet), the alarm fires.
 4. If nothing happens, the alarm fires at the end of the window so you don't
    oversleep.
-5. The alarm tone fades in from 1 % to 100 % over a minute so you wake up
-   gradually rather than panicked.
+5. The alarm fades in over a minute — in equal dB steps, so it stays
+   genuinely quiet for the first half — and you wake up gradually rather
+   than panicked. The built-in tone is a soft three-harmonic beep; you can
+   pick one of the phone's own alarm sounds or any audio file instead.
 6. Snooze by **lightly moving the phone** — no fumbling for a button. Each
    snooze picks a random duration between 60 s and 15 min (clamped so it
    never extends past the window). When the remaining window is too short
@@ -93,14 +95,14 @@ ios/                          # native Swift + SwiftUI, iOS 26+
     Tuning.swift              # all tunable constants
     Models/AlarmStore.swift   # alarm state machine
     Audio/MicMonitor.swift    # AVAudioEngine + rolling baseline + spike detection
-    Audio/AlarmPlayer.swift   # procedural beep tone with volume fade-up
+    Audio/AlarmPlayer.swift   # procedural tone or custom file, dB-linear fade-up
     Motion/MotionMonitor.swift# CoreMotion-based snooze nudge detection
     Views/MainView.swift      # set-alarm + monitoring screens
     Views/AlarmView.swift     # alarm + snoozing screen
   Resources/
     Assets.xcassets           # icon + accent colour
 
-android/                      # native Kotlin + Jetpack Compose, minSdk 34
+android/                      # native Kotlin + Jetpack Compose, minSdk 26
   app/src/main/
     AndroidManifest.xml
     kotlin/com/aka/alarm/
@@ -110,8 +112,10 @@ android/                      # native Kotlin + Jetpack Compose, minSdk 34
       model/AlarmPhase.kt
       model/AlarmStore.kt
       audio/MicMonitor.kt     # AudioRecord (UNPROCESSED) + RMS + baseline ring
-      audio/AlarmPlayer.kt    # AudioTrack + procedural tone + Vibrator pulses
+      audio/AlarmPlayer.kt    # AudioTrack tone / MediaPlayer custom file + Vibrator pulses
+      audio/CustomAlarmSound.kt # copies + probes the user's chosen sound
       motion/MotionMonitor.kt # SensorManager (TYPE_GYROSCOPE)
+      schedule/PhaseAlarm.kt  # exact RTC wakeups for every timed phase transition
       service/AlarmService.kt # ForegroundService that keeps mic alive overnight
       ui/Theme.kt             # Material 3 with dawn-sky gradient
       ui/MainScreen.kt        # set + monitoring screens
