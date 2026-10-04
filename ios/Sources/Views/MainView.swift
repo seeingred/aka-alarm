@@ -23,6 +23,7 @@ struct MainView: View {
         } message: {
             Text("aka Alarm needs the microphone to detect when you start stirring. Enable it in Settings → aka Alarm.")
         }
+        .readingVerticalBarEdge()
     }
 }
 
@@ -30,6 +31,7 @@ struct MainView: View {
 
 private struct SetAlarmView: View {
     @EnvironmentObject private var store: AlarmStore
+    @Environment(\.verticalBarEdge) private var verticalBarEdge
     @State private var showSettings = false
 
     private let minuteOptions = [0, 15, 30, 45]
@@ -40,13 +42,54 @@ private struct SetAlarmView: View {
     /// display, any landscape canvas (the Duo's inner display ignores our
     /// portrait lock), and split-screen multitasking.
     private let stackedLayoutMinHeight: CGFloat = 700
+    /// Without the Start button in the column (vertical-bar layout) five rows
+    /// fit on a shorter canvas.
+    private let stackedLayoutMinHeightWithoutStart: CGFloat = 600
 
     var body: some View {
+        Group {
+            if verticalBarEdge == .none {
+                canvas(withStart: true)
+                    .overlay(alignment: .topTrailing) {
+                        SettingsGearButton { showSettings = true }
+                    }
+            } else {
+                // iPhone Duo draws a vertical bar along one edge (the outer
+                // display, the inner one in landscape) and lays standard
+                // toolbar items out in it. The gear and Start go there and the
+                // canvas keeps only the picker. See VerticalBar.swift.
+                NavigationStack {
+                    canvas(withStart: false)
+                        .toolbar {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                Button {
+                                    showSettings = true
+                                } label: {
+                                    Label("Settings", systemImage: "gearshape")
+                                }
+                            }
+                            ToolbarItem(placement: .bottomBar) {
+                                Button {
+                                    Task { await store.startAlarm() }
+                                } label: {
+                                    Label("Start", systemImage: "play.fill")
+                                }
+                                .buttonStyle(.borderedProminent)
+                            }
+                        }
+                }
+            }
+        }
+        .sheet(isPresented: $showSettings) { SensitivitySheet() }
+    }
+
+    private func canvas(withStart: Bool) -> some View {
         // Size-driven, never device-driven (Apple's guidance for iPhone Duo):
         // wider than tall goes side by side, short canvases get three-row
         // wheels. Regular iPhones in portrait are unchanged.
         GeometryReader { geo in
-            let short = geo.size.height < stackedLayoutMinHeight
+            let minHeight = withStart ? stackedLayoutMinHeight : stackedLayoutMinHeightWithoutStart
+            let short = geo.size.height < minHeight
             let sideBySide = geo.size.width > geo.size.height
             // Side by side only the title shares the column with the wheels,
             // so five rows fit from ~520 pt of height; stacked needs ~700.
@@ -62,7 +105,7 @@ private struct SetAlarmView: View {
 
                     VStack(spacing: 32) {
                         windowLabelText
-                        startButton
+                        if withStart { startButton }
                     }
                     .frame(maxWidth: .infinity)
                 }
@@ -74,7 +117,7 @@ private struct SetAlarmView: View {
                     wheels(rows: rows)
                     windowLabelText
                     Spacer(minLength: 0)
-                    startButton
+                    if withStart { startButton }
                 }
                 // On a regular-width canvas (Duo's inner display) the pills and
                 // the Start button would otherwise stretch across the screen.
@@ -83,10 +126,6 @@ private struct SetAlarmView: View {
             }
         }
         .padding()
-        .overlay(alignment: .topTrailing) {
-            SettingsGearButton { showSettings = true }
-        }
-        .sheet(isPresented: $showSettings) { SensitivitySheet() }
     }
 
     private var title: some View {
@@ -159,11 +198,34 @@ private struct SetAlarmView: View {
 
 private struct MonitoringView: View {
     @EnvironmentObject private var store: AlarmStore
+    @Environment(\.verticalBarEdge) private var verticalBarEdge
     @State private var dragOffset: CGFloat = 0
     @State private var dimOpacity: Double = 0
     @State private var showSettings = false
 
     var body: some View {
+        Group {
+            if verticalBarEdge == .none {
+                screen
+            } else {
+                // iPhone Duo: the gear joins the system's vertical bar.
+                NavigationStack {
+                    screen.toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button {
+                                showSettings = true
+                            } label: {
+                                Label("Settings", systemImage: "gearshape")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showSettings) { SensitivitySheet() }
+    }
+
+    private var screen: some View {
         ZStack {
             // On a partially open iPhone Duo (the nightstand "tent" pose) the
             // clock goes to the segment away from the hinge, readable from the
@@ -205,7 +267,9 @@ private struct MonitoringView: View {
             // dark along with everything else; the overlay's hit-testing is off,
             // so the button stays tappable (tapping also resets the dim).
             .overlay(alignment: .topTrailing) {
-                SettingsGearButton { showSettings = true }
+                if verticalBarEdge == .none {
+                    SettingsGearButton { showSettings = true }
+                }
             }
             .offset(y: dragOffset)
 
@@ -234,7 +298,6 @@ private struct MonitoringView: View {
         )
         .simultaneousGesture(TapGesture().onEnded { resetDim() })
         .onAppear { startDimFade() }
-        .sheet(isPresented: $showSettings) { SensitivitySheet() }
     }
 
     private var clock: some View {

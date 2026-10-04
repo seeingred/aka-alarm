@@ -54,6 +54,13 @@ divides the inner display.
   opens, closes, rotates and folds the simulated device, and has a resize
   mode; the Previews canvas has a "Display" override group for the
   alternative display.
+- A Duo simulator added from Device Hub can come up with both panels black
+  (`simctl io screenshot` returns a flat image or "Timeout waiting for screen
+  surfaces", and the host CoreSimulator log reports the device "encountered
+  in creation state"). What cleared it here was a full Mac reboot and letting
+  Device Hub own the device from the start; `xcodebuild`/`simctl` then work
+  against it as usual, and the live panel in Claude's simulator tool
+  attaches too.
 - Deployment target stays iOS 26. Nothing here requires iOS 27 for other
   phones; the 27.1 SDK is a build-time requirement.
 
@@ -136,7 +143,8 @@ Audit of the current iOS code against the above, worst first.
    camera live along that edge. Either verify the safe-area inset keeps it
    clear in every pose, or move it into a real `.toolbar` so the system
    places it (and gets the vertical layout for free). The latter is the
-   guideline-conformant option.
+   guideline-conformant option. *Done (2026-10-04): when the system reports
+   a vertical bar, the gear and Start are toolbar items in it; see Status.*
 4. **Nightstand pose.** `MonitoringView` and `AlarmView` centre the clock in
    a `VStack`. Flat on a table that's fine; propped/tent is the pose people
    will actually use overnight, and the fold then runs through the middle.
@@ -173,11 +181,33 @@ Done without the Duo SDK, verified with the debug canvas harness below:
   560 pt. Regular iPhones unchanged.
 - Settings sheet opens at `.fraction(0.75)` instead of a fixed 620 pt.
 
-Still needs Xcode 27.1 + the Duo simulator: the gear/safe-area check on the
-outer display, the tent-pose arrangement (items 3–4 above), and everything
-in the hardware list. Note that the first beta installed here turned out to
-be **Xcode 27.2 beta 2**, which has the `iPhone Duo` device type (minimum
-runtime 27.1) but none of the Duo APIs in its SDK — the 27.1 line is the one.
+Verified on the real Duo simulator (Xcode 27.1 beta 2, 27A9269), closed
+pose, outer display 466 × 678 pt:
+
+- Set-alarm screen takes the three-row stacked layout; title, wheels, window
+  label and Start all fit with room to spare.
+- The outer display puts the status items (camera cut-out, clock, radio) in
+  a **vertical bar down the trailing edge**. The gear and Start now live in
+  that bar as standard toolbar items (gear under the status items, Start as
+  the prominent play button at the bottom); the canvas keeps only the
+  picker. Same on the monitoring screen for the gear. Driven by UIKit's
+  `verticalBarEdge` trait, bridged into the environment by
+  `VerticalBar.swift`, so every canvas without a vertical bar keeps the
+  overlay gear and the full-width Start button unchanged.
+- Settings sheet opens at 75 % of the display and scrolls; the alarm-sound
+  capsule and the "Audio file…" button are reachable.
+- Monitoring screen (flat arrangement, no active fold) renders as on any
+  phone: clock, window, mic bar with baseline and trigger markers, hint.
+- The inner panel is powered but black while closed, as expected.
+
+Still to run, with Device Hub driving the poses: the five remaining rows of
+the matrix below, the alarm and snooze screens in each, and the hardware
+list. Beta quirks seen on the way: the first in-app microphone permission
+request took the whole runtime down once and the app once; after granting
+the permission with `simctl privacy` it has been stable. Note that the first
+beta installed here turned out to be **Xcode 27.2 beta 2**, which has the
+`iPhone Duo` device type (minimum runtime 27.1) but none of the Duo APIs in
+its SDK — the 27.1 line is the one.
 
 ### Debug canvas harness
 
@@ -195,22 +225,38 @@ aren't scaled down. It is our layout only — no fold, no vertical bars, no
 asymmetric safe area.
 
 Xcode 27 no longer ships a standalone Simulator app, and `simctl` has no
-rotate or pose command, so real poses are Device Hub (GUI) only: one person
-drives Device Hub, screenshots come from `simctl io`.
+rotate or pose command (27.1 adds only `io … screenConfig power|geometry`;
+nothing in CoreSimulator, SimulatorKit or Device Hub's binaries takes a
+hinge angle, and `devicectl`'s hinge-angle action is a read-only stream for
+hardware). Real poses are Device Hub (GUI) only: one person drives Device
+Hub, screenshots come from `simctl io`. Useful on the Duo:
+
+```sh
+xcrun simctl io <udid> enumerate            # lists both panels:
+                                            #   outer 1398×2034, inner 2007×2853
+xcrun simctl io <udid> screenshot --display=1 outer.png
+xcrun simctl io <udid> screenshot --display=3 inner.png
+xcrun simctl privacy <udid> grant microphone com.aka.alarm
+xcrun simctl launch --console <udid> com.aka.alarm   # keeps the app's stderr
+```
+
+`--display=internal` resolves to whichever panel is the primary one (the
+outer panel while closed). Address the panels by screen ID — the port UUIDs
+that `enumerate` prints change every time the runtime restarts.
 
 ## Test matrix
 
 Run the app in the Duo simulator in each of these and screenshot every
 screen (set alarm, settings sheet, armed/monitoring, alarming, snoozing):
 
-| Canvas | Points | How |
-|---|---|---|
-| Outer, portrait | 466 × 678 | closed |
-| Outer, landscape | 678 × 466 | closed, rotated |
-| Inner, portrait | 669 × 951 | open |
-| Inner, landscape | 951 × 669 | open, rotated |
-| Inner, book | 669 × 951 with fold | partially folded, portrait |
-| Inner, tabletop | 951 × 669 with fold | partially folded, landscape |
+| Canvas | Points | How | Result |
+|---|---|---|---|
+| Outer, portrait | 466 × 678 | closed | set alarm, sheet, monitoring ✓ (2026-10-04) |
+| Outer, landscape | 678 × 466 | closed, rotated | pending |
+| Inner, portrait | 669 × 951 | open | pending |
+| Inner, landscape | 951 × 669 | open, rotated | pending |
+| Inner, book | 669 × 951 with fold | partially folded, portrait | pending |
+| Inner, tabletop | 951 × 669 with fold | partially folded, landscape | pending |
 
 Device Hub's resize mode covers the first four without the pose controls.
 Then on hardware: StandBy in the tent pose, closing the device while armed,

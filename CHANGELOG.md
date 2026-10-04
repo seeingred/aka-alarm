@@ -37,6 +37,21 @@ later when snoozed" report on
 - The settings sheet opens at full height and scrolls (Android) / grows to
   fit and scrolls (iOS).
 
+**iPhone Duo (iOS)** — groundwork for Apple's foldable, built against the
+iOS 27.1 SDK; nothing changes on other iPhones.
+
+- The set-alarm screen is laid out by canvas size: side by side when wider
+  than tall, three-row wheels when height is tight, and the stacked column
+  is capped so the pills don't stretch across the inner display. The
+  settings sheet opens at three quarters of the screen instead of a fixed
+  height that the outer display can't fit.
+- On the outer display (and the inner one in landscape) the system draws a
+  vertical bar along one edge; the settings gear and the Start button move
+  into it as standard toolbar items, leaving the canvas to the time picker.
+- When the device is partially open, the monitoring and alarm screens keep
+  the clock on the far side of the fold and the controls on the near side,
+  so the phone works as a nightstand clock in the tent pose.
+
 **Set-alarm screen in landscape and on short screens (Android)** — fixes
 [issue #4](https://github.com/seeingred/aka-alarm/issues/4), reported by
 @Biondi-Tommaso, building on their
