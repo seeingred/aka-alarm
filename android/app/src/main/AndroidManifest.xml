@@ -60,5 +60,17 @@
                 <action android:name="com.aka.alarm.action.PHASE_TRANSITION" />
             </intent-filter>
         </receiver>
+
+        <receiver
+            android:name=".widget.AlarmWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.aka.alarm.widget.ACTION_TOGGLE_ARM" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/alarm_widget_info" />
+        </receiver>
     </application>
 </manifest>

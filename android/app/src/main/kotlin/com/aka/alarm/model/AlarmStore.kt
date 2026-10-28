@@ -22,6 +22,7 @@ import com.aka.alarm.schedule.PhaseAlarm
 import com.aka.alarm.schedule.PhaseAlarmScheduler
 import com.aka.alarm.service.AlarmService
 import com.aka.alarm.service.AlarmServiceLifecycle
+import com.aka.alarm.widget.AlarmWidgetProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -203,6 +204,7 @@ class AlarmStore(private val app: Application) {
             putInt(KEY_HOUR, selectedHour)
             putInt(KEY_MINUTE, selectedMinute)
         }
+        AlarmWidgetProvider.updateAllWidgets(app)
     }
 
     private companion object {
@@ -345,6 +347,8 @@ class AlarmStore(private val app: Application) {
         } else if (AlarmServiceLifecycle.shouldStopService(current, next)) {
             app.stopService(Intent(app, AlarmService::class.java))
         }
+
+        AlarmWidgetProvider.updateAllWidgets(app)
     }
 
     /**

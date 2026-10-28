@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">aka Alarm</string>
+    <string name="widget_status_armed">ARMED</string>
+    <string name="widget_status_disarmed">DISARMED</string>
+    <string name="widget_action_arm">ARM</string>
+    <string name="widget_action_disarm">DISARM</string>
+    <string name="widget_time_label">Wake-up window</string>
+    <string name="widget_status_description">Status indicator</string>
 </resources>
